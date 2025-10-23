@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../Utils/user_details.dart'; // adjust path if needed
+import 'dart:convert';
+import '../utils/user_details.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -11,118 +11,24 @@ class ChangePasswordScreen extends StatefulWidget {
 }
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
-  final TextEditingController _currentPasswordController = TextEditingController();
-  final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController currentPasswordController = TextEditingController();
+  final TextEditingController newPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
-  bool _isLoading = false;
-  bool _showCurrent = false;
-  bool _showNew = false;
-  bool _showConfirm = false;
+  bool currentVisible = false;
+  bool newVisible = false;
+  bool confirmVisible = false;
+  bool isLoading = false;
 
-  final darkPink = Colors.pink.shade700;
+  final Color darkPink = const Color(0xFFE91E63);
 
-  // ⚙️ Replace with your backend API URLs
-  final String loginUrl = "https://backend.staralign.me/endpoint/v1/models/login";
-  final String changePasswordUrl = "https://backend.staralign.me/endpoint/v1/models/change_password";
-
-  // ✅ Step 1: Verify current password by calling the login API (same logic as login screen)
-  Future<bool> _verifyCurrentPassword() async {
-    try {
-      var response = await http.post(
-        Uri.parse(loginUrl),
-        body: {
-          'username': UserDetails.username,
-          'password': _currentPasswordController.text.trim(),
-          'mobile_device_id': UserDetails.deviceId,
-        },
-      );
-
-      print("Verify password response: ${response.body}");
-
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-        if (data['code'] == 200 || data['status'] == "200") {
-          // Login successful → password is correct
-          return true;
-        } else {
-          _showMessage("Current password is incorrect!");
-          return false;
-        }
-      } else {
-        _showMessage("Error verifying password. Try again.");
-        return false;
-      }
-    } catch (e) {
-      _showMessage("Error: $e");
-      return false;
-    }
-  }
-
-  // ✅ Step 2: Change password after verification
-  Future<void> _changePassword() async {
-    String newPassword = _newPasswordController.text.trim();
-    String confirmPassword = _confirmPasswordController.text.trim();
-
-    if (newPassword.isEmpty || confirmPassword.isEmpty) {
-      _showMessage("Please fill in all fields!");
-      return;
-    }
-
-    if (newPassword != confirmPassword) {
-      _showMessage("New password and confirm password do not match!");
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    bool verified = await _verifyCurrentPassword();
-    if (!verified) {
-      setState(() => _isLoading = false);
-      return;
-    }
-
-    try {
-      var response = await http.post(
-        Uri.parse(changePasswordUrl),
-        body: {
-          'access_token': UserDetails.accessToken,
-          'user_id': UserDetails.userId.toString(),
-          'new_password': newPassword,
-        },
-      );
-
-      print("Change password response: ${response.body}");
-
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-        if (data['code'] == 200 || data['status'] == "200") {
-          UserDetails.password = newPassword;
-          _showMessage("Password changed successfully!", success: true);
-          _currentPasswordController.clear();
-          _newPasswordController.clear();
-          _confirmPasswordController.clear();
-        } else {
-          _showMessage(data['message'] ?? "Failed to change password!");
-        }
-      } else {
-        _showMessage("Server error: ${response.statusCode}");
-      }
-    } catch (e) {
-      _showMessage("Error: $e");
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // ✅ SnackBar helper
-  void _showMessage(String msg, {bool success = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-        backgroundColor: success ? darkPink : Colors.red.shade600,
-      ),
-    );
+  @override
+  void dispose() {
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -130,109 +36,271 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Change Password"),
-        backgroundColor: darkPink,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: darkPink,
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            Text(
-              "Update Your Password",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: darkPink,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              _buildPasswordField(
+                controller: currentPasswordController,
+                label: "Current Password",
+                visible: currentVisible,
+                onToggle: () => setState(() => currentVisible = !currentVisible),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter your current password';
+                  }
+                  return null;
+                },
               ),
-            ),
-            const SizedBox(height: 30),
-
-            // 🔒 Current password
-            TextField(
-              controller: _currentPasswordController,
-              obscureText: !_showCurrent,
-              decoration: InputDecoration(
-                labelText: "Current Password",
-                labelStyle: TextStyle(color: darkPink),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _showCurrent ? Icons.visibility : Icons.visibility_off,
-                    color: darkPink,
+              const SizedBox(height: 20),
+              _buildPasswordField(
+                controller: newPasswordController,
+                label: "New Password",
+                visible: newVisible,
+                onToggle: () => setState(() => newVisible = !newVisible),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a new password';
+                  }
+                  if (value.trim().length < 6) {
+                    return 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+              _buildPasswordField(
+                controller: confirmPasswordController,
+                label: "Confirm Password",
+                visible: confirmVisible,
+                onToggle: () => setState(() => confirmVisible = !confirmVisible),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please confirm your password';
+                  }
+                  if (value.trim() != newPasswordController.text.trim()) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: darkPink,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
                   ),
-                  onPressed: () => setState(() => _showCurrent = !_showCurrent),
-                ),
-                border: const OutlineInputBorder(),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: darkPink, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // 🔒 New password
-            TextField(
-              controller: _newPasswordController,
-              obscureText: !_showNew,
-              decoration: InputDecoration(
-                labelText: "New Password",
-                labelStyle: TextStyle(color: darkPink),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _showNew ? Icons.visibility : Icons.visibility_off,
-                    color: darkPink,
+                  onPressed: isLoading ? null : _changePassword,
+                  child: isLoading
+                      ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                      : const Text(
+                    "Change Password",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  onPressed: () => setState(() => _showNew = !_showNew),
-                ),
-                border: const OutlineInputBorder(),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: darkPink, width: 2),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            // 🔒 Confirm password
-            TextField(
-              controller: _confirmPasswordController,
-              obscureText: !_showConfirm,
-              decoration: InputDecoration(
-                labelText: "Confirm Password",
-                labelStyle: TextStyle(color: darkPink),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _showConfirm ? Icons.visibility : Icons.visibility_off,
-                    color: darkPink,
-                  ),
-                  onPressed: () => setState(() => _showConfirm = !_showConfirm),
-                ),
-                border: const OutlineInputBorder(),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: darkPink, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required String label,
+    required bool visible,
+    required VoidCallback onToggle,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: !visible,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: darkPink),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: darkPink),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: darkPink, width: 2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.red),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.red, width: 2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        suffixIcon: IconButton(
+          icon: Icon(
+            visible ? Icons.visibility : Icons.visibility_off,
+            color: darkPink,
+          ),
+          onPressed: onToggle,
+        ),
+      ),
+      style: TextStyle(color: darkPink),
+    );
+  }
 
-            // Save button
-            ElevatedButton(
-              onPressed: _isLoading ? null : _changePassword,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: darkPink,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 45),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                "Save Password",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
+  // ✅ FIXED: access_token IN POST BODY, NOT URL
+  Future<void> _changePassword() async {
+    // Validate form
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final current = currentPasswordController.text.trim();
+    final newPass = newPasswordController.text.trim();
+    final confirm = confirmPasswordController.text.trim();
+
+    // Check if new passwords match
+    if (newPass != confirm) {
+      _showSnack("New passwords do not match");
+      return;
+    }
+
+    // Check if current password is correct
+    if (current != UserDetails.password) {
+      _showSnack("Current password is incorrect");
+      return;
+    }
+
+    // Check if new password is different from current
+    if (newPass == current) {
+      _showSnack("New password must be different from current password");
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      // ✅ NO access_token IN URL - IT GOES IN THE BODY!
+      final url = Uri.parse(
+          'https://backend.staralign.me/endpoint/v1/models/users/change_password'
+      );
+
+      // ✅ access_token MUST BE IN THE POST BODY
+      Map<String, String> body = {
+        'access_token': UserDetails.accessToken,  // ✅ IN BODY!
+        'c_pass': current,
+        'n_pass': newPass,
+        'cn_pass': confirm,
+      };
+
+      print('🔐 Changing password...');
+      print('📦 Body: $body');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body,
+      );
+
+      print('📡 Response Status: ${response.statusCode}');
+      print('📡 Response Body: ${response.body}');
+
+      var data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['code'] == 200) {
+        // ✅ SUCCESS - UPDATE LOCAL PASSWORD
+        UserDetails.password = newPass;
+
+        _showSnack("Password changed successfully");
+
+        // Clear password fields
+        currentPasswordController.clear();
+        newPasswordController.clear();
+        confirmPasswordController.clear();
+
+        // Wait a bit for user to see the success message, then go back
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      } else {
+        // Handle error
+        String message = "Failed to change password";
+
+        if (data['message'] != null && data['message'].toString().isNotEmpty) {
+          message = data['message'];
+        } else if (data['errors'] != null) {
+          if (data['errors'] is Map) {
+            message = data['errors']['error_text'] ?? data['errors'].toString();
+          } else if (data['errors'] is String) {
+            message = data['errors'];
+          }
+        } else if (data['error'] != null) {
+          message = data['error'];
+        }
+
+        _showSnack(message);
+      }
+    } catch (e) {
+      print('❌ Exception: $e');
+      _showSnack("Failed to connect to server. Please check your internet connection.");
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  // ✅ SNACKBAR WITH DYNAMIC COLOR
+  void _showSnack(String message) {
+    if (!mounted) return;
+
+    final backgroundColor = message.toLowerCase().contains("success")
+        ? Colors.green
+        : darkPink;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+          ),
+        ),
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
       ),
     );

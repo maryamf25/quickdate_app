@@ -369,6 +369,8 @@ class _LoginScreenState extends State<LoginScreen> {
         'password': password,
         'mobile_device_id': UserDetails.deviceId,
       };
+      UserDetails.password = passwordController.text.trim();
+
       final response = await http.post(
         Uri.parse('${SocialLoginService.baseUrl}/users/login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
