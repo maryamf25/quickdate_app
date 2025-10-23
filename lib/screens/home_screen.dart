@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/user_details.dart';
 import 'my_account_screen.dart';
 import 'card_match_screen.dart';
 import 'trending_screen.dart';
@@ -11,6 +12,9 @@ import 'blocked_user_screen.dart';
 import 'affiliate_screen.dart';
 import 'withdrawal_screen.dart';
 import 'transactions_screen.dart';
+import 'replace_password_screen.dart';
+import 'two_factor_auth_screen.dart';
+import 'manage_sessions_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -155,6 +159,24 @@ class _SettingsTabState extends State<_SettingsTab> {
       context,
     ).push(MaterialPageRoute(builder: (context) => const TransactionsScreen()));
   }
+  void _navigateToPasswordScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReplacePasswordScreen(email: UserDetails.email), // remove const
+      ),
+    );
+  }
+
+
+  void _navigateToTwoFactorAuthScreen() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const TwoFactorAuthScreen()));
+  }
+
+  void _navigateToManageSessionsScreen() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const ManageSessionsScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -197,6 +219,26 @@ class _SettingsTabState extends State<_SettingsTab> {
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: _navigateToAffiliatesScreen,
+                ),
+                const Divider(height: 32),
+                const Text(
+                  "Security",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                ListTile(
+                  title: const Text("Password"),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: _navigateToPasswordScreen,
+                ),
+                ListTile(
+                  title: const Text("Two-factor Authentication"),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: _navigateToTwoFactorAuthScreen,
+                ),
+                ListTile(
+                  title: const Text("Manage Sessions"),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: _navigateToManageSessionsScreen,
                 ),
                 const Divider(height: 32),
                 const Text(

@@ -177,10 +177,8 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // The image shows a white background with black text and an arrow.
-        // There's no background color for the AppBar itself, just a text.
-        backgroundColor: Colors.white,
-        elevation: 0, // Remove shadow
+        backgroundColor: Colors.black,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
@@ -190,11 +188,11 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         title: const Text(
           "Blocked Users",
           style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold, // Adjust as per image
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        centerTitle: false, // Align title to the left
+        centerTitle: false,
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -210,19 +208,18 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Icon from the image
             const Icon(
-              Icons.person, // Changed to a generic person icon as in the image
-              size: 100, // Adjusted size to be larger
-              color: Colors.pink, // The color from the image
+              Icons.person,
+              size: 100,
+              color: Colors.pink,
             ),
             const SizedBox(height: 20),
             const Text(
-              'There are no users', // Text directly from the image
+              'There are no users',
               style: TextStyle(
-                fontSize: 22, // Adjust font size
-                fontWeight: FontWeight.normal, // Adjust font weight
-                color: Colors.black, // Color from the image
+                fontSize: 22,
+                fontWeight: FontWeight.normal,
+                color: Colors.white,
               ),
             ),
           ],
@@ -233,28 +230,48 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         itemBuilder: (context, index) {
           final user = blockedUsers[index];
           return ListTile(
-            leading: CircleAvatar(
-              backgroundImage: NetworkImage(
-                user.avatar.isNotEmpty
-                    ? user.avatar
-                    : 'https://via.placeholder.com/150',
+            leading: const CircleAvatar( // Changed to a generic icon as in the image
+              backgroundColor: Colors.grey, // Background for the person icon
+              child: Icon(
+                Icons.person,
+                color: Colors.white,
               ),
             ),
             title: Text(
-                user.fullname.isNotEmpty ? user.fullname : user.username),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(user.country),
-                Text(
-                  'Blocked on: ${formatBlockedDate(user.blockedOn)}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
+              user.fullname.isNotEmpty ? user.fullname : user.username,
+              style: const TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w500, // Adjusted font weight
+              ),
             ),
-            trailing: IconButton(
-              icon: const Icon(Icons.block, color: Colors.red),
+            // Removed subtitle to match the image
+            // subtitle: Column(
+            //   crossAxisAlignment: CrossAxisAlignment.start,
+            //   children: [
+            //     Text(user.country),
+            //     Text(
+            //       'Blocked on: ${formatBlockedDate(user.blockedOn)}',
+            //       style: const TextStyle(fontSize: 12, color: Colors.grey),
+            //     ),
+            //   ],
+            // ),
+            trailing: TextButton( // Changed from IconButton to TextButton
               onPressed: () => unblockUser(user.id),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.pink.withOpacity(0.1), // Light pink background
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20), // Rounded corners
+                ),
+              ),
+              child: const Text(
+                'Unblock',
+                style: TextStyle(
+                  color: Colors.pink, // Pink text color
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
             ),
           );
         },
