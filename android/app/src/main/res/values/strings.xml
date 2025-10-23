@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">quickdate_app</string>
+    <string name="facebook_app_id">Aseaa Malik</string>
+    <string name="fb_login_protocol_scheme">fbYOUR_FB_APP_ID</string>
+</resources>
