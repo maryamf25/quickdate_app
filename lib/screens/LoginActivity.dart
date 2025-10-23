@@ -437,6 +437,7 @@ class _LoginScreenState extends State<LoginScreen> {
     UserDetails.fullName =
         '${userInfoFromResponse['first_name'] ?? ''} ${userInfoFromResponse['last_name'] ?? ''}';
     UserDetails.email = userInfoFromResponse['email'] ?? ''; // ✅ FIXED HERE
+    UserDetails.email = userInfoFromResponse['email'] ?? ''; // ✅ FIXED HERE
     UserDetails.country_txt = userInfoFromResponse['country'] ?? '';
     UserDetails.phone = userInfoFromResponse['phone_number'] ?? '';
     UserDetails.avatar = userInfoFromResponse['avater'] ?? '';

@@ -11,6 +11,7 @@ import 'blocked_user_screen.dart';
 import 'affiliate_screen.dart';
 import 'withdrawal_screen.dart';
 import 'transactions_screen.dart';
+import 'change_password_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -167,6 +168,7 @@ class _SettingsTabState extends State<_SettingsTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ---------------- GENERAL SECTION ----------------
                 const Divider(height: 32),
                 const Text(
                   "General",
@@ -192,12 +194,12 @@ class _SettingsTabState extends State<_SettingsTab> {
                 ),
                 ListTile(
                   title: const Text("My Affiliates"),
-                  subtitle: const Text(
-                    "Earn up to \$X for each user you refer",
-                  ),
+                  subtitle: const Text("Earn up to \$X for each user you refer"),
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: _navigateToAffiliatesScreen,
                 ),
+
+                // ---------------- PAYMENTS SECTION ----------------
                 const Divider(height: 32),
                 const Text(
                   "Payments",
@@ -205,9 +207,7 @@ class _SettingsTabState extends State<_SettingsTab> {
                 ),
                 ListTile(
                   title: const Text("Withdrawals"),
-                  subtitle: const Text(
-                    "Withdraw your earnings via PayPal or Bank",
-                  ),
+                  subtitle: const Text("Withdraw your earnings via PayPal or Bank"),
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: _navigateToWithdrawalScreen,
                 ),
@@ -217,6 +217,42 @@ class _SettingsTabState extends State<_SettingsTab> {
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: _navigateToTransactionsScreen,
                 ),
+
+                // ---------------- SECURITY SECTION ----------------
+                const Divider(height: 32),
+                const Text(
+                  "Security",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                ListTile(
+                  title: const Text("Password"),
+                  subtitle: const Text("Change your account password"),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+                    );
+                  },
+                ),
+                ListTile(
+                  title: const Text("Two-Factor Authentication"),
+                  subtitle: const Text("Enable or manage 2FA"),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    // Navigation for 2FA screen if implemented
+                  },
+                ),
+                ListTile(
+                  title: const Text("Manage Sessions"),
+                  subtitle: const Text("View and sign out from active sessions"),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    // Navigation for sessions management screen if implemented
+                  },
+                ),
+
+                // ---------------- THEME MODE ----------------
                 const Divider(height: 32),
                 const Text(
                   "Theme Mode",
