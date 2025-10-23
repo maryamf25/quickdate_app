@@ -13,9 +13,20 @@ class UserDetails {
   static String langName = "";
   static String isPro = "";
   static String url = "";
-
+  static String facebook= "";
+  static String google = "";
+  static String twitter = "";
+  static String linkedin = "";
+  static String instagram = "";
+  static String discord = "";
+  static String okru = "";
+  static String mailru = "";
+  static String wechat = "";
+  static String qq = "";
+  static String website = "";
   static String lat = "";
   static String lng = "";
+  static List<Map<String, dynamic>> blockedUsers = [];
 
   // ✅ Add these fields
   static String country_txt = ""; // User's country name for display
@@ -47,6 +58,18 @@ class UserDetails {
     url = "";
     lat = "";
     lng = "";
+    facebook = "";
+    google = "";
+    twitter = "";
+    linkedin = "";
+    instagram = "";
+    discord = "";
+    okru = "";
+    mailru = "";
+    wechat = "";
+    qq = "";
+    website = "";
+
     // ✅ Clear new fields as well
     country_txt = "";
     phone = "";

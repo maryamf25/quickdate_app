@@ -1,84 +1,75 @@
-// affiliate_screen.dart
 import 'package:flutter/material.dart';
-import 'api_service.dart';
-import 'user_model.dart';
+import 'package:flutter/services.dart';
+import '../utils/user_details.dart'; // Make sure UserDetails.username is available
 
-class MyAffiliatesScreen extends StatefulWidget {
+class MyAffiliatesScreen extends StatelessWidget {
   const MyAffiliatesScreen({super.key});
 
   @override
-  State<MyAffiliatesScreen> createState() => _MyAffiliatesScreenState();
-}
-
-class _MyAffiliatesScreenState extends State<MyAffiliatesScreen> {
-  List<ReferredUser> referredUsers = [];
-  bool isLoading = true;
-  String errorMessage = '';
-  String referralCode =
-      'REF${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadReferredUsers();
-  }
-
-  Future<void> _loadReferredUsers() async {
-    setState(() {
-      isLoading = true;
-      errorMessage = '';
-    });
-
-    final response = await ApiService.getAffiliateData();
-
-    if (response['success'] == true) {
-      final data = response['data'];
-      List<ReferredUser> users = [];
-
-      if (data is List) {
-        for (var userData in data) {
-          users.add(ReferredUser.fromJson(userData));
-        }
-      }
-
-      setState(() {
-        referredUsers = users;
-        isLoading = false;
-      });
-    } else {
-      setState(() {
-        errorMessage = response['message'] ?? 'Failed to load referred users';
-        isLoading = false;
-      });
-    }
-  }
-
-  void _copyReferralCode() {
-    // Implement copy to clipboard
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Referral code copied to clipboard!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // Generate referral link using current username
+    String referralLink =
+        'https://quickdatescript.com/register?ref=${UserDetails.username}';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Affiliates"),
-        backgroundColor: Colors.purple,
-        foregroundColor: Colors.white,
+        title: const Text('My Affiliates'),
+        backgroundColor: const Color(0xFFBF01FD),
       ),
-      body: Center(
-        child: Text(
-          "Earn \$10 on each referral",
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.purple[800],
-          ),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const SizedBox(height: 40),
+            const Text(
+              'Earn up to \$ for each user you refer to us!',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 30),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      referralLink,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy, color: Color(0xFFBF01FD)),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: referralLink));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Referral link copied to clipboard!'),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Share this link with your friends and earn rewards!',
+              style: TextStyle(fontSize: 16, color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );

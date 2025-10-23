@@ -416,7 +416,17 @@ class _LoginScreenState extends State<LoginScreen> {
   ) async {
     UserDetails.accessToken = userData['access_token'] ?? '';
     UserDetails.userId = userData['user_id'] ?? 0;
-
+    UserDetails.facebook = userData['facebook'] ?? '';
+    UserDetails.google = userData['google'] ?? '';
+    UserDetails.twitter = userData['twitter'] ?? '';
+    UserDetails.linkedin = userData['linkedin'] ?? '';
+    UserDetails.instagram = userData['instagram'] ?? '';
+    UserDetails.discord = userData['discord'] ?? '';
+    UserDetails.okru = userData['okru'] ?? '';
+    UserDetails.mailru = userData['mailru'] ?? '';
+    UserDetails.wechat = userData['wechat'] ?? '';
+    UserDetails.qq = userData['qq'] ?? '';
+    UserDetails.website = userData['website'] ?? '';
     // ✅ Read user_info safely
     Map<String, dynamic>? userInfoFromResponse = Map<String, dynamic>.from(
       userData['user_info'] ?? {},
@@ -431,7 +441,55 @@ class _LoginScreenState extends State<LoginScreen> {
     UserDetails.phone = userInfoFromResponse['phone_number'] ?? '';
     UserDetails.avatar = userInfoFromResponse['avater'] ?? '';
     UserDetails.cover = userInfoFromResponse['cover'] ?? '';
+    UserDetails.facebook = userInfoFromResponse['facebook'] ?? '';
+    UserDetails.google = userInfoFromResponse['google'] ?? '';
+    UserDetails.twitter = userInfoFromResponse['twitter'] ?? '';
+    UserDetails.linkedin = userInfoFromResponse['linkedin'] ?? '';
+    UserDetails.instagram = userInfoFromResponse['instagram'] ?? '';
+    UserDetails.discord = userInfoFromResponse['discord'] ?? '';
+    UserDetails.okru = userInfoFromResponse['okru'] ?? '';
+    UserDetails.mailru = userInfoFromResponse['mailru'] ?? '';
+    UserDetails.wechat = userInfoFromResponse['wechat'] ?? '';
+    UserDetails.qq = userInfoFromResponse['qq'] ?? '';
+    UserDetails.website = userInfoFromResponse['website'] ?? '';
 
+////////////////////////////////////////////////////////////////////////////blockeduser
+    try {
+      final blockedResponse = await http.get(
+        Uri.parse('${SocialLoginService.baseUrl}/users/blocked_users?access_token=${UserDetails.accessToken}&limit=50'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      );
+
+      if (blockedResponse.statusCode == 200) {
+        final blockedData = jsonDecode(blockedResponse.body);
+
+        if (blockedData['code'] == 200) {
+          UserDetails.blockedUsers = List<Map<String, dynamic>>.from(blockedData['data']);
+        } else {
+          UserDetails.blockedUsers = [];
+        }
+
+        print('--------------------------');
+        print('✅ BLOCKED USERS:');
+        for (var u in UserDetails.blockedUsers) {
+          print('Username: ${u['username']}, Avatar: ${u['avatar']}');
+        }
+        print('--------------------------');
+      } else {
+        print('Blocked users API returned status: ${blockedResponse.statusCode}');
+        UserDetails.blockedUsers = [];
+      }
+    } catch (e) {
+      print('Error fetching blocked users: $e');
+      UserDetails.blockedUsers = [];
+    }
+
+
+
+
+    //////////////////////////////////////////////////////////////////////
     // ✅ Save full userData (including user_info) to Hive
     var box = await Hive.openBox('loginBox');
     await box.put('currentUser', userData);
