@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum TabTheme { light, dark, system }
+enum AppLanguage { english, arabic }
 
 class AppSettings {
   static TabTheme setTabDarkTheme = TabTheme.system;
@@ -17,6 +18,9 @@ class AppSettings {
   // Title Colors
   static Color titleTextColor = Colors.black;
   static Color titleTextColorDark = Colors.white;
+
+  // Language
+  static AppLanguage appLanguage = AppLanguage.english;
 }
 
 // Swipe count details
@@ -59,6 +63,7 @@ class MainSettings {
   static const String _nightModeKey = "Night_Mode_Key";
   static const String _flowDirectionKey = "FLOW_DIRECTION_KEY";
   static const String _showFbBannerAdsKey = "SHOW_FB_BANNER_ADS_KEY";
+  static const String _languageKey = "APP_LANGUAGE_KEY"; // ✅ NEW KEY
 
   static late SharedPreferences _prefs;
 
@@ -79,19 +84,46 @@ class MainSettings {
 
     // Banner ad preference
     AppSettings.showFbBannerAds = _prefs.getBool(_showFbBannerAdsKey) ?? false;
+
+    // Language preference
+    String? lang = _prefs.getString(_languageKey) ?? 'english';
+    applyLanguage(lang);
   }
 
   // Apply Theme
   static void applyTheme(String themePref) {
     if (themePref == _lightMode) {
       AppSettings.setTabDarkTheme = TabTheme.light;
-      WidgetsBinding.instance.platformDispatcher.platformBrightness ==
-          Brightness.light;
     } else if (themePref == _darkMode) {
       AppSettings.setTabDarkTheme = TabTheme.dark;
     } else {
       AppSettings.setTabDarkTheme = TabTheme.system;
     }
+  }
+
+  // ✅ Apply Language
+  static void applyLanguage(String langPref) {
+    if (langPref.toLowerCase() == 'arabic') {
+      AppSettings.appLanguage = AppLanguage.arabic;
+      AppSettings.flowDirectionRightToLeft = true;
+    } else {
+      AppSettings.appLanguage = AppLanguage.english;
+      AppSettings.flowDirectionRightToLeft = false;
+    }
+  }
+
+  // ✅ Store & Get Language
+  static Future<void> storeLanguage(AppLanguage lang) async {
+    String value = lang == AppLanguage.arabic ? 'arabic' : 'english';
+    await _prefs.setString(_languageKey, value);
+    applyLanguage(value);
+  }
+
+  static AppLanguage getLanguage() {
+    String? lang = _prefs.getString(_languageKey) ?? 'english';
+    return lang.toLowerCase() == 'arabic'
+        ? AppLanguage.arabic
+        : AppLanguage.english;
   }
 
   // Tutorial Dialog
