@@ -1,17 +1,24 @@
+
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/user_details.dart';
 import 'my_account_screen.dart';
 import 'card_match_screen.dart';
 import 'trending_screen.dart';
 import 'notifications_screen.dart';
 import 'chats_screen.dart';
-import 'main_settings.dart'; // your settings file
+import 'main_settings.dart';
 import 'social_links_screen.dart';
 import 'blocked_user_screen.dart';
 import 'affiliate_screen.dart';
 import 'withdrawal_screen.dart';
 import 'transactions_screen.dart';
-import 'change_password_screen.dart';
+import 'replace_password_screen.dart';
+import 'two_factor_auth_screen.dart';
+import 'manage_sessions_screen.dart';
+import 'social_login_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,25 +30,23 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   Brightness? _platformBrightness;
-
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
     _screens = [
-      CardMatchScreen(),
-      TrendingScreen(),
-      NotificationsScreen(),
-      ChatsScreen(),
-      _SettingsTab(), // inline settings widget
+      const CardMatchScreen(),
+      const TrendingScreen(),
+      const NotificationsScreen(),
+      const ChatsScreen(),
+      _SettingsTab(),
     ];
-
     _initializeSettings();
   }
 
   Future<void> _initializeSettings() async {
-    await MainSettings.init(); // Load saved settings
+    await MainSettings.init();
     _applyTheme();
   }
 
@@ -92,18 +97,12 @@ class _HomeScreenState extends State<HomeScreen> {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Match'),
             BottomNavigationBarItem(
-              icon: Icon(Icons.trending_up),
-              label: 'Trending',
-            ),
+                icon: Icon(Icons.trending_up), label: 'Trending'),
             BottomNavigationBarItem(
-              icon: Icon(Icons.notifications),
-              label: 'Alerts',
-            ),
+                icon: Icon(Icons.notifications), label: 'Alerts'),
             BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chats'),
             BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
-              label: 'Settings',
-            ),
+                icon: Icon(Icons.settings), label: 'Settings'),
           ],
         ),
       ),
@@ -111,7 +110,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Inline Settings Tab Widget
+//
+// ================= SETTINGS TAB =================
+//
 class _SettingsTab extends StatefulWidget {
   @override
   State<_SettingsTab> createState() => _SettingsTabState();
@@ -119,177 +120,258 @@ class _SettingsTab extends StatefulWidget {
 
 class _SettingsTabState extends State<_SettingsTab> {
   TabTheme _currentTheme = AppSettings.setTabDarkTheme;
+  String _currentLanguage = 'en'; // Default language always safe
 
-  void _navigateToSocialLinksScreen() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const SocialLinksScreen()));
-  }
+  // Messenger Toggles
+  bool _showActiveStatus = true;
 
-  void _navigateToMyAccountScreen() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const MyAccountScreen()));
-  }
-
-  // In _SettingsTabState class
-  void _navigateToBlockedUsersScreen() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const BlockedUsersScreen()));
-  }
-
-  void _navigateToAffiliatesScreen() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const MyAffiliatesScreen()));
-  }
-
-  void _navigateToWithdrawalScreen() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const PaymentScreen()));
-  }
-
-  void _navigateToTransactionsScreen() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const TransactionsScreen()));
-  }
+  // Privacy Toggles
+  bool _showProfileOnSearch = true;
+  bool _showProfileInRandomUsers = true;
+  bool _showProfileInFindMatch = true;
+  bool _confirmFriendRequest = true;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Settings")),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ---------------- GENERAL SECTION ----------------
-                const Divider(height: 32),
-                const Text(
-                  "General",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                ListTile(
-                  title: const Text("My Account"),
-                  subtitle: const Text("Manage your profile and settings"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: _navigateToMyAccountScreen,
-                ),
-                ListTile(
-                  title: const Text("Social Links"),
-                  subtitle: const Text("Connect your social media accounts"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: _navigateToSocialLinksScreen,
-                ),
-                ListTile(
-                  title: const Text("Blocked Users"),
-                  subtitle: const Text("Manage blocked users"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: _navigateToBlockedUsersScreen,
-                ),
-                ListTile(
-                  title: const Text("My Affiliates"),
-                  subtitle: const Text("Earn up to \$X for each user you refer"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: _navigateToAffiliatesScreen,
-                ),
-
-                // ---------------- PAYMENTS SECTION ----------------
-                const Divider(height: 32),
-                const Text(
-                  "Payments",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                ListTile(
-                  title: const Text("Withdrawals"),
-                  subtitle: const Text("Withdraw your earnings via PayPal or Bank"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: _navigateToWithdrawalScreen,
-                ),
-                ListTile(
-                  title: const Text("Transactions"),
-                  subtitle: const Text("View all your transactions"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: _navigateToTransactionsScreen,
-                ),
-
-                // ---------------- SECURITY SECTION ----------------
-                const Divider(height: 32),
-                const Text(
-                  "Security",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                ListTile(
-                  title: const Text("Password"),
-                  subtitle: const Text("Change your account password"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
-                    );
-                  },
-                ),
-                ListTile(
-                  title: const Text("Two-Factor Authentication"),
-                  subtitle: const Text("Enable or manage 2FA"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    // Navigation for 2FA screen if implemented
-                  },
-                ),
-                ListTile(
-                  title: const Text("Manage Sessions"),
-                  subtitle: const Text("View and sign out from active sessions"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    // Navigation for sessions management screen if implemented
-                  },
-                ),
-
-                // ---------------- THEME MODE ----------------
-                const Divider(height: 32),
-                const Text(
-                  "Theme Mode",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                ListTile(
-                  title: const Text("Light"),
-                  leading: Radio<TabTheme>(
-                    value: TabTheme.light,
-                    groupValue: _currentTheme,
-                    onChanged: _onThemeChanged,
-                  ),
-                ),
-                ListTile(
-                  title: const Text("Dark"),
-                  leading: Radio<TabTheme>(
-                    value: TabTheme.dark,
-                    groupValue: _currentTheme,
-                    onChanged: _onThemeChanged,
-                  ),
-                ),
-                ListTile(
-                  title: const Text("System Default"),
-                  leading: Radio<TabTheme>(
-                    value: TabTheme.system,
-                    groupValue: _currentTheme,
-                    onChanged: _onThemeChanged,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  void initState() {
+    super.initState();
+    _initLanguage();
+    _loadToggleStates();
   }
 
+  /// Load saved toggle states
+  Future<void> _loadToggleStates() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _showActiveStatus = prefs.getBool('showActiveStatus') ?? true;
+      _showProfileOnSearch = prefs.getBool('showProfileOnSearch') ?? true;
+      _showProfileInRandomUsers = prefs.getBool('showProfileInRandomUsers') ?? true;
+      _showProfileInFindMatch = prefs.getBool('showProfileInFindMatch') ?? true;
+      _confirmFriendRequest = prefs.getBool('confirmFriendRequest') ?? true;
+    });
+  }
+
+  /// Save toggle state
+  Future<void> _saveToggleState(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
+  /// ✅ Load saved or system language safely
+  Future<void> _initLanguage() async {
+    try {
+      final lang = MainSettings.getLanguage();
+      setState(() => _currentLanguage = lang == AppLanguage.arabic ? 'ar' : 'en');
+    } catch (e) {
+      debugPrint("Error initializing language: $e");
+      setState(() => _currentLanguage = 'en');
+    }
+  }
+
+  /// ✅ Save new language choice
+  Future<void> _onLanguageChanged(String? value) async {
+    if (value == null) return;
+    setState(() => _currentLanguage = value);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('app_language', value);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Language changed to ${value == 'en' ? 'English' : 'Arabic'}",
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error saving language: $e");
+    }
+  }
+  Future<void> _updateOnlineStatus(BuildContext context, bool isOnline) async {
+    final token = UserDetails.accessToken; // ✅ replace with your stored token
+    final onlineValue = isOnline ? "1" : "0";
+
+    const apiUrl = ('${SocialLoginService.baseUrl}/messages/switch_online'); // ✅ your API URL
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: {
+          "access_token": token,
+          "online": onlineValue,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data["code"] == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isOnline
+                    ? "You are now marked Online ✅"
+                    : "You are now marked Offline 📴",
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          throw Exception(data["errors"]?["error_text"] ?? "Unknown error");
+        }
+      } else {
+        throw Exception("Failed to update status: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("❌ Error updating online status: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to update online status. Please try again."),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+  Future<void> _updatePrivacySetting(
+      BuildContext context, String field, bool value) async {
+    final url = Uri.parse('${SocialLoginService.baseUrl}/users/update_privacy'); // Replace with your actual endpoint
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: {
+          "access_token": UserDetails.accessToken,
+          field: value ? "1" : "0",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print('Privacy setting "$field" updated successfully.');
+      } else {
+        print('Failed to update $field: ${response.body}');
+      }
+    } catch (e) {
+      print('Error updating $field: $e');
+    }
+  }
+
+
+  Future<void> _updateShowProfileToRandomUsers(BuildContext context, bool showProfile) async {
+    final token = UserDetails.accessToken;
+    final showProfileValue = showProfile ? "1" : "0";
+
+    const apiUrl = '${SocialLoginService.baseUrl}/users/update_profile';
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: {
+          "access_token": token,
+          "privacy_show_profile_random_users": showProfileValue,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data["code"] == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                showProfile
+                    ? "Your profile is now visible to random users 👀"
+                    : "Your profile is now hidden from random users 🙈",
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          throw Exception(data["errors"]?["error_text"] ?? "Unknown error");
+        }
+      } else {
+        throw Exception("Failed to update privacy setting: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("❌ Error updating profile visibility: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to update profile visibility. Please try again."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      // Revert the toggle if API call fails
+      setState(() {
+        _showProfileInRandomUsers = !showProfile;
+      });
+    }
+  }
+
+  Future<void> _updateShowProfileToMatches(BuildContext context, bool showProfile) async {
+    final token = UserDetails.accessToken;
+    final showProfileValue = showProfile ? "1" : "0";
+
+    const apiUrl = '${SocialLoginService.baseUrl}/users//update_profile';
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: {
+          "access_token": token,
+          "privacy_show_profile_match_profiles": showProfileValue,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data["code"] == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                showProfile
+                    ? "Your profile is now visible to matches 💝"
+                    : "Your profile is now hidden from matches 💔",
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          throw Exception(data["errors"]?["error_text"] ?? "Unknown error");
+        }
+      } else {
+        throw Exception("Failed to update match visibility: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("❌ Error updating match visibility: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to update match visibility. Please try again."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      // Revert the toggle if API call fails
+      setState(() {
+        _showProfileInFindMatch = !showProfile;
+      });
+    }
+  }
+
+  // Navigation helper
+  void _navigateTo(Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  // Theme change handler
   void _onThemeChanged(TabTheme? value) {
     if (value == null) return;
     setState(() {
@@ -299,6 +381,269 @@ class _SettingsTabState extends State<_SettingsTab> {
     final homeState = context.findAncestorStateOfType<_HomeScreenState>();
     homeState?._applyTheme();
   }
-}
 
-// New Screens for the added features
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Settings")),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Divider(height: 32),
+              const Text("General",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ListTile(
+                title: const Text("My Account"),
+                subtitle: const Text("Manage your profile and settings"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const MyAccountScreen()),
+              ),
+              ListTile(
+                title: const Text("Social Links"),
+                subtitle: const Text("Connect your social media accounts"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const SocialLinksScreen()),
+              ),
+              ListTile(
+                title: const Text("Blocked Users"),
+                subtitle: const Text("Manage blocked users"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const BlockedUsersScreen()),
+              ),
+              ListTile(
+                title: const Text("My Affiliates"),
+                subtitle: const Text("Earn rewards for referrals"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const MyAffiliatesScreen()),
+              ),
+
+              const Divider(height: 32),
+              const Text(
+                "Messenger",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SwitchListTile(
+                title: const Text("Show when you're active"),
+                value: _showActiveStatus,
+                onChanged: (bool value) async {
+                  setState(() {
+                    _showActiveStatus = value;
+                  });
+                  _saveToggleState('showActiveStatus', value);
+                  await _updateOnlineStatus(context, value); // ✅ Updated version
+                },
+                activeColor: const Color(0xFFBF01FD),
+              ),
+
+
+              const Divider(height: 32),
+              const Text(
+                "Privacy",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              SwitchListTile(
+                title: const Text("Show my profile on search engines?"),
+                value: _showProfileOnSearch,
+                onChanged: (bool value) {
+                  setState(() {
+                    _showProfileOnSearch = value;
+                  });
+                  _saveToggleState('showProfileOnSearch', value);
+                  _updatePrivacySetting(context, 'privacy_show_profile_on_google', value);
+                },
+                activeColor: Colors.grey,
+              ),
+
+              SwitchListTile(
+                title: const Text("Show my profile in random users?"),
+                value: _showProfileInRandomUsers,
+                onChanged: (bool value) {
+                  setState(() {
+                    _showProfileInRandomUsers = value;
+                  });
+                  _saveToggleState('showProfileInRandomUsers', value);
+                  _updatePrivacySetting(context, 'privacy_show_profile_random_users', value);
+                },
+                activeColor: const Color(0xFFBF01FD),
+              ),
+
+              SwitchListTile(
+                title: const Text("Show my profile in find match page?"),
+                value: _showProfileInFindMatch,
+                onChanged: (bool value) {
+                  setState(() {
+                    _showProfileInFindMatch = value;
+                  });
+                  _saveToggleState('showProfileInFindMatch', value);
+                  _updatePrivacySetting(context, 'privacy_show_profile_match_profiles', value);
+                },
+                activeColor: const Color(0xFFBF01FD),
+              ),
+
+              SwitchListTile(
+                title: const Text(
+                  "Confirm request when someone requests to be a friend with you?",
+                ),
+                value: _confirmFriendRequest,
+                onChanged: (bool value) {
+                  setState(() {
+                    _confirmFriendRequest = value;
+                  });
+                  _saveToggleState('confirmFriendRequest', value);
+                  _updatePrivacySetting(context, 'confirm_followers', value);
+                },
+                activeColor: Colors.grey,
+              ),
+
+              const Divider(height: 32),
+              const Text("Security",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ListTile(
+                title: const Text("Password"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(
+                    ReplacePasswordScreen(email: UserDetails.email)),
+              ),
+              ListTile(
+                title: const Text("Two-Factor Authentication"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const TwoFactorAuthScreen()),
+              ),
+              ListTile(
+                title: const Text("Manage Sessions"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const ManageSessionsScreen()),
+              ),
+
+              const Divider(height: 32),
+              const Text("Payments",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ListTile(
+                title: const Text("Withdrawals"),
+                subtitle:
+                const Text("Withdraw your earnings via PayPal or Bank"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const PaymentScreen()),
+              ),
+              ListTile(
+                title: const Text("Transactions"),
+                subtitle: const Text("View all your transactions"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () => _navigateTo(const TransactionsScreen()),
+              ),
+
+              const Divider(height: 32),
+              const Text("Display",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+
+              // --- THEME SELECTION ---
+              ListTile(
+                title: const Text("Theme"),
+                subtitle: Text(
+                  _currentTheme == TabTheme.light
+                      ? "Light"
+                      : _currentTheme == TabTheme.dark
+                      ? "Dark"
+                      : "System Default",
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text("Select Theme"),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RadioListTile<TabTheme>(
+                              title: const Text("System Default"),
+                              value: TabTheme.system,
+                              groupValue: _currentTheme,
+                              onChanged: (value) {
+                                _onThemeChanged(value);
+                                Navigator.pop(context);
+                              },
+                            ),
+                            RadioListTile<TabTheme>(
+                              title: const Text("Light"),
+                              value: TabTheme.light,
+                              groupValue: _currentTheme,
+                              onChanged: (value) {
+                                _onThemeChanged(value);
+                                Navigator.pop(context);
+                              },
+                            ),
+                            RadioListTile<TabTheme>(
+                              title: const Text("Dark"),
+                              value: TabTheme.dark,
+                              groupValue: _currentTheme,
+                              onChanged: (value) {
+                                _onThemeChanged(value);
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+
+              // --- LANGUAGE SELECTION ---
+              ListTile(
+                title: const Text(
+                  "Language",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  _currentLanguage == 'en' ? "English" : "Arabic",
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text("Select Language"),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RadioListTile<String>(
+                              title: const Text("English"),
+                              value: 'en',
+                              groupValue: _currentLanguage,
+                              onChanged: (value) {
+                                _onLanguageChanged(value);
+                                Navigator.pop(context);
+                              },
+                            ),
+                            RadioListTile<String>(
+                              title: const Text("Arabic"),
+                              value: 'ar',
+                              groupValue: _currentLanguage,
+                              onChanged: (value) {
+                                _onLanguageChanged(value);
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

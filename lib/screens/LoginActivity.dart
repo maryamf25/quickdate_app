@@ -485,7 +485,7 @@ class _LoginScreenState extends State<LoginScreen> {
         UserDetails.blockedUsers = [];
       }
     } catch (e) {
-      print('Error fetching blocked users: $e');
+      print('Error fetching blocked usersssss: $e');
       UserDetails.blockedUsers = [];
     }
 
@@ -504,6 +504,7 @@ class _LoginScreenState extends State<LoginScreen> {
     print('Email: ${UserDetails.email}'); // ✅ Check this now
     print('Country: ${UserDetails.country_txt}');
     print('Phone: ${UserDetails.phone}');
+    print('Phone: ${UserDetails.blockedUsers}');
     print('--------------------------');
 
     if (!mounted) return;
