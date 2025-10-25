@@ -37,38 +37,14 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
       duration: const Duration(milliseconds: 300),
     );
 
-    // Add debug info
-    print('🚀 TrendingScreen initState');
-    print('🔑 Access token available: ${UserDetails.accessToken.isNotEmpty}');
-    print('👤 User ID: ${UserDetails.userId}');
-    print('🎯 Current filter settings:');
-    print('   • Gender: ${UserDetails.filterOptionGender}');
-    print('   • Age: ${UserDetails.filterOptionAgeMin}-${UserDetails.filterOptionAgeMax}');
-    print('   • Distance: ${UserDetails.filterOptionDistance} km');
-    print('   • Online only: ${UserDetails.filterOptionIsOnline}');
-    print('   • Filters active: ${_hasActiveFilters()}');
 
-    _testConnectivity();
     _fetchFriends();
     _fetchHotOrNotUsers();
   }
 
-  Future<void> _testConnectivity() async {
-    print('🧪 Testing API connectivity...');
-    try {
-      final response = await http.get(
-        Uri.parse('${SocialLoginService.baseUrl}/test'),
-      );
-      print('🧪 Test response: ${response.statusCode}');
-    } catch (e) {
-      print('🧪 Test connectivity failed: $e');
-    }
-  }
 
   Future<void> _fetchFriends() async {
     final url = Uri.parse('${SocialLoginService.baseUrl}/users/random_users');
-    print('🔍 Fetching friends from: $url');
-    print('🔑 Access token: ${UserDetails.accessToken}');
 
     // Build request body with filter parameters
     Map<String, String> requestBody = {
@@ -86,8 +62,6 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
       requestBody['genders'] = genderFilter;
     }
 
-    print('🎯 Request body with filters: $requestBody');
-
     try {
       final response = await http.post(
         url,
@@ -95,13 +69,8 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
         body: requestBody,
       );
 
-      // ...existing code...
-      print('📡 Friends API Response Status: ${response.statusCode}');
-      print('📄 Friends API Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('📊 Friends API Data: $data');
 
         if (data['code'] == 200 && data['data'] != null) {
           List<dynamic> rawFriends = List<dynamic>.from(data['data']);
@@ -113,20 +82,16 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
             _friends = filteredData;
             _filteredFriends = _friends;
           });
-          print('👥 Friends loaded: ${rawFriends.length} total, ${_friends.length} after client-side filtering');
         } else {
-          print('❌ Friends API returned no data or error code');
           setState(() {
             _friends = [];
             _filteredFriends = [];
           });
         }
       } else {
-        print('❌ Friends API failed with status: ${response.statusCode}');
         setState(() => _friends = []);
       }
     } catch (e) {
-      print('💥 Error fetching friends: $e');
       setState(() => _friends = []);
     }
   }
@@ -134,7 +99,6 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
   Future<void> _fetchHotOrNotUsers() async {
     // Use the dedicated get_hot_or_not endpoint as specified in the PHP code
     final url = Uri.parse('${SocialLoginService.baseUrl}/users/get_hot_or_not');
-    print('🔍 Fetching Hot or Not users from: $url');
 
     // Build request body with filter parameters
     Map<String, String> requestBody = {
@@ -154,8 +118,6 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
       requestBody['genders'] = genderFilter;
     }
 
-    print('🎯 Hot or Not request body with filters: $requestBody');
-
     try {
       final response = await http.post(
         url,
@@ -163,13 +125,8 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
         body: requestBody,
       );
 
-      // ...existing code...
-      print('📡 Hot or Not API Response Status: ${response.statusCode}');
-      print('📄 Hot or Not API Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('📊 Hot or Not API Data: $data');
 
         if (data['code'] == 200) {
           if (data['data'] != null && data['data'] is List) {
@@ -183,42 +140,25 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
               _filteredHotOrNotUsers = _hotOrNotUsers;
               _isLoading = false;
             });
-            print('🔥 Hot or Not users loaded: ${rawUsers.length} total, ${_hotOrNotUsers.length} after client-side filtering');
-
-            if (_hotOrNotUsers.isEmpty) {
-              print('⚠️  No Hot or Not users found. This could mean:');
-              print('   • All users have already been rated');
-              print('   • No users meet the criteria (active, verified, privacy settings)');
-              print('   • No other users exist in the database');
-              print('   • All users are blocked or liked already');
-              print('   • Current filters are too restrictive');
-            }
           } else {
-            print('❌ Hot or Not API data field is null or not a list');
             setState(() {
               _hotOrNotUsers = [];
               _isLoading = false;
             });
           }
         } else {
-          print('❌ Hot or Not API returned error code: ${data['code']}');
-          if (data['errors'] != null) {
-            print('❌ Error details: ${data['errors']}');
-          }
           setState(() {
             _hotOrNotUsers = [];
             _isLoading = false;
           });
         }
       } else {
-        print('❌ Hot or Not API failed with status: ${response.statusCode}');
         setState(() {
           _hotOrNotUsers = [];
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('💥 Error fetching Hot or Not users: $e');
       setState(() {
         _hotOrNotUsers = [];
         _isLoading = false;
@@ -505,7 +445,6 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
 
               // If filters were applied, refresh the data
               if (result == true) {
-                print('🔄 Filters applied, refreshing data...');
                 _fetchFriends();
                 _fetchHotOrNotUsers();
               }
@@ -522,7 +461,7 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(horizontalPadding, 10, horizontalPadding, 0),
             sliver: SliverToBoxAdapter(
-              child: _filteredFriends.isEmpty
+              child: (_filteredFriends.isEmpty || _filteredFriends.length == 0)
                 ? Container(
                     height: 100,
                     child: const Center(
@@ -634,7 +573,7 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
           ),
 
           // Regular User Profile Cards
-          if (_filteredFriends.isNotEmpty)
+          if (_filteredFriends.isNotEmpty && _filteredFriends.length >= 1)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 20),
               sliver: SliverToBoxAdapter(
@@ -643,6 +582,7 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
                   lastSeen: 'Recently active',
                   imageUrl: _filteredFriends[0]['avater']?.toString() ?? '',
                   isOnline: _filteredFriends[0]['online'] == "1" || _filteredFriends[0]['online'] == 1,
+                  userData: _filteredFriends[0],
                 ),
               ),
             ),
@@ -657,6 +597,7 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
                   lastSeen: 'Active 2h ago',
                   imageUrl: _filteredFriends[1]['avater']?.toString() ?? '',
                   isOnline: _filteredFriends[1]['online'] == "1" || _filteredFriends[1]['online'] == 1,
+                  userData: _filteredFriends[1],
                 ),
               ),
             ),
@@ -756,6 +697,39 @@ class _HotOrNotCard extends StatelessWidget {
                           Colors.transparent,
                           Colors.black.withValues(alpha: 0.6),
                         ],
+                      ),
+                    ),
+                  ),
+
+                  // Chat button in top right
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: GestureDetector(
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Start chat with ${user['username'] ?? 'this user'}'),
+                            action: SnackBarAction(
+                              label: 'Chat',
+                              onPressed: () {
+                                // TODO: Implement chat functionality
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.chat_bubble_outline,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
@@ -930,10 +904,18 @@ class StoriesBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Add null safety check
+    if (friends.isEmpty) {
+      return const SizedBox(
+        height: 100,
+        child: Center(child: Text('No stories available')),
+      );
+    }
+
     final List<Map<String, String>> stories = [
       {'name': 'Your Story', 'image': ''},
-      ...friends.map((f) => {
-        'name': f['username']?.toString() ?? '',
+      ...friends.where((f) => f != null).map((f) => {
+        'name': f['username']?.toString() ?? 'Unknown',
         'image': f['avater']?.toString() ?? '',
       }),
     ];
@@ -951,10 +933,10 @@ class StoriesBar extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: StoryItem(
-              name: item['name'] ?? '',
+              name: item['name'] ?? 'Unknown',
               imageUrl: item['image'] ?? '',
               isAdd: isAdd,
-              onTap: !isAdd
+              onTap: !isAdd && friends.length > (index - 1) && friends[index - 1] != null
                   ? () {
                 final user = friends[index - 1];
                 Navigator.push(
@@ -1014,8 +996,10 @@ class StoryItem extends StatelessWidget {
                 child: CircleAvatar(
                   radius: (size - 6) / 2,
                   backgroundColor: Colors.grey[200],
-                  backgroundImage: imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
-                  child: imageUrl.isEmpty
+                  backgroundImage: (imageUrl.isNotEmpty && imageUrl != 'null')
+                    ? NetworkImage(imageUrl)
+                    : null,
+                  child: (imageUrl.isEmpty || imageUrl == 'null')
                       ? Icon(Icons.person, size: 32, color: Colors.grey[600])
                       : null,
                 ),
@@ -1061,6 +1045,8 @@ class UserProfileCard extends StatelessWidget {
   final bool isOnline;
   final bool showLikeAnimation;
   final VoidCallback? onLikePressed;
+  final dynamic userData; // Add user data for chat functionality
+  final VoidCallback? onChatPressed;
 
   const UserProfileCard({
     super.key,
@@ -1070,6 +1056,8 @@ class UserProfileCard extends StatelessWidget {
     this.isOnline = false,
     this.showLikeAnimation = false,
     this.onLikePressed,
+    this.userData,
+    this.onChatPressed,
   });
 
   @override
@@ -1123,12 +1111,54 @@ class UserProfileCard extends StatelessWidget {
           ),
           if (isOnline)
             const Positioned(right: 18, bottom: 18, child: _OnlineDot()),
+
+          // Action buttons row
           Positioned(
             right: 12,
             top: 12,
-            child: GestureDetector(
-              onTap: onLikePressed,
-              child: const Icon(Icons.favorite_border, color: Colors.white, size: 20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Chat button
+                GestureDetector(
+                  onTap: onChatPressed ?? () {
+                    if (userData != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Start chat with ${userData['username'] ?? 'this user'}'),
+                          action: SnackBarAction(
+                            label: 'Chat',
+                            onPressed: () {
+                              // TODO: Implement chat functionality
+                            },
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Like button
+                GestureDetector(
+                  onTap: onLikePressed,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(Icons.favorite_border, color: Colors.white, size: 18),
+                  ),
+                ),
+              ],
             ),
           ),
           if (showLikeAnimation)

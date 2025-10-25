@@ -8,7 +8,6 @@ import 'my_account_screen.dart';
 import 'card_match_screen.dart';
 import 'trending_screen.dart';
 import 'notifications_screen.dart';
-import 'chats_screen.dart';
 import 'main_settings.dart';
 import 'social_links_screen.dart';
 import 'blocked_user_screen.dart';
@@ -42,7 +41,6 @@ class _HomeScreenState extends State<HomeScreen> {
       const CardMatchScreen(),
       const TrendingScreen(),
       const NotificationsScreen(),
-      const ChatsScreen(),
       _SettingsTab(),
     ];
     _initializeSettings();

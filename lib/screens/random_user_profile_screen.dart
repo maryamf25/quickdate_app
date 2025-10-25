@@ -3,7 +3,265 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../utils/user_details.dart';
 import 'social_login_service.dart';
-import 'chat_screen.dart';
+import 'chat_conversation_screen.dart';
+
+// Inline conversation screen import
+import 'dart:convert' as conv;
+
+class ChatConversationScreen extends StatefulWidget {
+  final dynamic conversation;
+  final VoidCallback? onMessageSent;
+
+  const ChatConversationScreen({
+    super.key,
+    required this.conversation,
+    this.onMessageSent,
+  });
+
+  @override
+  State<ChatConversationScreen> createState() => _ChatConversationScreenState();
+}
+
+class _ChatConversationScreenState extends State<ChatConversationScreen> {
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  List<dynamic> _messages = [];
+  bool _loading = true;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMessages();
+    _markMessagesAsRead();
+  }
+
+  Future<void> _fetchMessages() async {
+    setState(() => _loading = true);
+
+    try {
+      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/get_messages');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'user_id': widget.conversation['user_id'].toString(),
+          'limit': '50',
+          'offset': '0',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['code'] == 200 && data['data'] != null) {
+          setState(() {
+            _messages = List<dynamic>.from(data['data']);
+            _loading = false;
+          });
+          _scrollToBottom();
+        } else {
+          setState(() {
+            _messages = [];
+            _loading = false;
+          });
+        }
+      } else {
+        setState(() => _loading = false);
+      }
+    } catch (e) {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final message = _messageController.text.trim();
+    if (message.isEmpty || _sending) return;
+
+    setState(() => _sending = true);
+
+    try {
+      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_message');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'recipient_id': widget.conversation['user_id'].toString(),
+          'message': message,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 200) {
+          _messageController.clear();
+          await _fetchMessages();
+          if (widget.onMessageSent != null) {
+            widget.onMessageSent!();
+          }
+        }
+      }
+    } catch (e) {
+      // Handle error
+    } finally {
+      setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    try {
+      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/mark_as_read');
+      await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'user_id': widget.conversation['user_id'].toString(),
+        },
+      );
+    } catch (e) {
+      // Handle error
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final username = widget.conversation['username'] ?? 'Unknown User';
+    final avatar = widget.conversation['avatar'] ?? '';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.grey[300],
+              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+              child: avatar.isEmpty
+                ? Icon(Icons.person, color: Colors.grey[600], size: 20)
+                : null,
+            ),
+            const SizedBox(width: 12),
+            Text(username),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _messages.isEmpty
+                ? const Center(child: Text('No messages yet'))
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      final isMe = message['from_id'].toString() == UserDetails.userId.toString();
+                      final text = message['text'] ?? '';
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                          children: [
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: isMe
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  text,
+                                  style: TextStyle(
+                                    color: isMe ? Colors.white : Colors.black87,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Type a message...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: _sending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.send, color: Colors.white),
+                    onPressed: _sending ? null : _sendMessage,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 
 class RandomUserProfileScreen extends StatefulWidget {
@@ -33,7 +291,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
   }
 
   Future<void> _initializeStates() async {
-    await Future.wait([_checkIfFavorite(), _checkIfFriend()]);
+    await Future.wait([_checkIfFavorite(), _checkIfFriend(), _checkIfLiked()]);
     setState(() => isLoading = false);
   }
 
@@ -244,48 +502,33 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
       isLikeLoading = true;
     });
 
-    final userId = widget.user['id'];
-    // debugPrint('🔹 User ID value: $userId');
-    // debugPrint('🔹 User ID type: ${userId.runtimeType}');
-
-    if (userId == null || userId.toString().isEmpty) {
-      debugPrint("❌ Invalid user ID. Cannot proceed with like toggling.");
-      setState(() => isLikeLoading = false);
-      return;
-    }
-
     final apiUrl = isLiked
         ? '${SocialLoginService.baseUrl}/users/delete_like'
         : '${SocialLoginService.baseUrl}/users/add_likes';
-
-    final body = isLiked
-        ? {
-      'access_token': UserDetails.accessToken,
-      'user_likeid': userId, // ensure string
-    }
-        : {
-      'access_token': UserDetails.accessToken,
-      'likes': userId.toString(), // ensure string
-    };
 
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: body,
+        body: isLiked
+            ? {
+          'access_token': UserDetails.accessToken,
+          'user_likeid': widget.user['id'].toString(),
+        }
+            : {
+          'access_token': UserDetails.accessToken,
+          'likes': widget.user['id'].toString(),
+        },
       );
 
       final data = json.decode(response.body);
-      if (response.statusCode == 200) {
-        debugPrint('✅ Success: ${data['message']}');
-        setState(() {
-          isLiked = !isLiked;
-        });
-      } else {
-        debugPrint('❌ Failed [${response.statusCode}]: ${response.body}');
-      }
+      print(data['message'] ?? data['errors']?['error_text'] ?? 'Unknown');
+
+      setState(() {
+        isLiked = !isLiked;
+      });
     } catch (e) {
-      debugPrint('Error toggling like: $e');
+      print('Error toggling like: $e');
     } finally {
       setState(() {
         isLikeLoading = false;
@@ -293,6 +536,43 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     }
   }
 
+  void _startConversation() {
+    print('🚀 _startConversation called for user: ${widget.user['username']}');
+    print('🚀 User ID: ${widget.user['id']}');
+
+    // Create a conversation object from user data
+    final conversation = {
+      'user_id': widget.user['id'],
+      'username': widget.user['username'] ?? 'Unknown User',
+      'avatar': widget.user['avater'] ?? widget.user['avatar'] ?? '',
+      'conversation_id': null, // Will be created when first message is sent
+      'text': '', // No last message yet
+      'time': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      'seen': '1', // Mark as seen since we're starting the conversation
+    };
+
+    print('🚀 Navigation conversation data: $conversation');
+
+    // Navigate to chat conversation screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) {
+          print('🚀 Building ChatConversationScreen widget...');
+          return ChatConversationScreen(
+            conversation: conversation,
+            onMessageSent: () {
+              print('Message sent to ${widget.user['username']}');
+            },
+          );
+        },
+      ),
+    ).then((result) {
+      print('🚀 Returned from ChatConversationScreen with result: $result');
+    }).catchError((error) {
+      print('🚀 Error navigating to ChatConversationScreen: $error');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -335,7 +615,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                   image: NetworkImage(avatar),
                   fit: BoxFit.cover,
                   colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(0.4),
+                    Colors.black.withValues(alpha: 0.4),
                     BlendMode.darken,
                   ),
                 ),
@@ -439,12 +719,8 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                   children: [
                     _buildBottomActionButton(
                       Icons.chat,
-                          () {
-                        // Navigate to the ChatScreen when the button is pressed
-                        Navigator.push(
-                          context, // Make sure 'context' is available in this scope
-                          MaterialPageRoute(builder: (context) => const ChatScreen()),
-                        );
+                      () {
+                        _startConversation();
                       },
                       isPink: isFavorite,
                     ),
@@ -470,7 +746,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
       width: 50,
       height: 50,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.3),
+        color: Colors.white.withValues(alpha: 0.3),
         shape: BoxShape.circle,
       ),
       child: IconButton(
@@ -505,3 +781,316 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     );
   }
 }
+
+// Simple Chat Screen Implementation
+class SimpleChatScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+
+  const SimpleChatScreen({super.key, required this.user});
+
+  @override
+  State<SimpleChatScreen> createState() => _SimpleChatScreenState();
+}
+
+class _SimpleChatScreenState extends State<SimpleChatScreen> {
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final List<Map<String, dynamic>> _messages = [];
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendMessage() async {
+    final message = _messageController.text.trim();
+    if (message.isEmpty || _sending) return;
+
+    setState(() => _sending = true);
+
+    try {
+      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_message');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'recipient_id': widget.user['id'].toString(),
+          'message': message,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 200) {
+          // Add message to local list
+          setState(() {
+            _messages.add({
+              'text': message,
+              'from_id': UserDetails.userId,
+              'time': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            });
+          });
+
+          _messageController.clear();
+          _scrollToBottom();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Message sent successfully!')),
+          );
+        } else {
+          _showError('Failed to send message: ${data['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        _showError('Failed to send message');
+      }
+    } catch (e) {
+      _showError('Failed to send message: $e');
+    } finally {
+      setState(() => _sending = false);
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final username = widget.user['username'] ?? 'Unknown User';
+    final avatar = widget.user['avater'] ?? '';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.grey[300],
+              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+              child: avatar.isEmpty
+                ? Icon(Icons.person, color: Colors.grey[600], size: 20)
+                : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                username,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.call),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Voice call feature coming soon')),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.videocam),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Video call feature coming soon')),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _messages.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: 80,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No messages yet',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Start the conversation with ${username}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    final message = _messages[index];
+                    final isMe = message['from_id'].toString() == UserDetails.userId.toString();
+                    final text = message['text'] ?? '';
+                    final time = DateTime.fromMillisecondsSinceEpoch(
+                      message['time'] * 1000,
+                    );
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                        children: [
+                          if (!isMe) ...[
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Colors.grey[300],
+                              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+                              child: avatar.isEmpty
+                                ? Icon(Icons.person, size: 16, color: Colors.grey[600])
+                                : null,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isMe
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey[300],
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    text,
+                                    style: TextStyle(
+                                      color: isMe ? Colors.white : Colors.black87,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+                                    style: TextStyle(
+                                      color: isMe ? Colors.white70 : Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (isMe) ...[
+                            const SizedBox(width: 8),
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Colors.grey[300],
+                              backgroundImage: UserDetails.avatar.isNotEmpty
+                                ? NetworkImage(UserDetails.avatar)
+                                : null,
+                              child: UserDetails.avatar.isEmpty
+                                ? Icon(Icons.person, size: 16, color: Colors.grey[600])
+                                : null,
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(
+                        hintText: 'Type a message...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(25),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                      maxLines: null,
+                      textCapitalization: TextCapitalization.sentences,
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: _sending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.send, color: Colors.white),
+                      onPressed: _sending ? null : _sendMessage,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
