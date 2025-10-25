@@ -39,6 +39,16 @@ class UserDetails {
   static String filterOptionDistance = "35";
   static String filterOptionLanguage = "english";
 
+  // Additional filter properties for persistence
+  static List<String> filterOptionBodyTypes = [];
+  static double filterOptionHeightMin = 150;
+  static double filterOptionHeightMax = 200;
+  static String filterOptionReligion = "Any";
+  static List<String> filterOptionEthnicities = [];
+  static String filterOptionRelationship = "Any";
+  static String filterOptionSmoking = "Any";
+  static String filterOptionDrinking = "Any";
+
   // get name => null; // This getter is unusual for a static class, consider removing or making it static if needed.
 
   static void clearAll() {
@@ -79,6 +89,17 @@ class UserDetails {
     filterOptionGender = "4525,4526";
     filterOptionIsOnline = false;
     filterOptionDistance = "35";
+    filterOptionLanguage = "english";
+
+    // Clear additional filter properties
+    filterOptionBodyTypes = [];
+    filterOptionHeightMin = 150;
+    filterOptionHeightMax = 200;
+    filterOptionReligion = "Any";
+    filterOptionEthnicities = [];
+    filterOptionRelationship = "Any";
+    filterOptionSmoking = "Any";
+    filterOptionDrinking = "Any";
     filterOptionLanguage = "english";
   }
 }
