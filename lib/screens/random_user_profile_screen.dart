@@ -244,39 +244,55 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
       isLikeLoading = true;
     });
 
+    final userId = widget.user['id'];
+    // debugPrint('🔹 User ID value: $userId');
+    // debugPrint('🔹 User ID type: ${userId.runtimeType}');
+
+    if (userId == null || userId.toString().isEmpty) {
+      debugPrint("❌ Invalid user ID. Cannot proceed with like toggling.");
+      setState(() => isLikeLoading = false);
+      return;
+    }
+
     final apiUrl = isLiked
         ? '${SocialLoginService.baseUrl}/users/delete_like'
         : '${SocialLoginService.baseUrl}/users/add_likes';
+
+    final body = isLiked
+        ? {
+      'access_token': UserDetails.accessToken,
+      'user_likeid': userId, // ensure string
+    }
+        : {
+      'access_token': UserDetails.accessToken,
+      'likes': userId.toString(), // ensure string
+    };
 
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: isLiked
-            ? {
-          'access_token': UserDetails.accessToken,
-          'user_likeid': widget.user['id'].toString(),
-        }
-            : {
-          'access_token': UserDetails.accessToken,
-          'likes': widget.user['id'].toString(),
-        },
+        body: body,
       );
 
       final data = json.decode(response.body);
-      print(data['message'] ?? data['errors']?['error_text'] ?? 'Unknown');
-
-      setState(() {
-        isLiked = !isLiked;
-      });
+      if (response.statusCode == 200) {
+        debugPrint('✅ Success: ${data['message']}');
+        setState(() {
+          isLiked = !isLiked;
+        });
+      } else {
+        debugPrint('❌ Failed [${response.statusCode}]: ${response.body}');
+      }
     } catch (e) {
-      print('Error toggling like: $e');
+      debugPrint('Error toggling like: $e');
     } finally {
       setState(() {
         isLikeLoading = false;
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

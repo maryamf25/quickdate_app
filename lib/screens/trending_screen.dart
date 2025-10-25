@@ -73,8 +73,6 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
     // Build request body with filter parameters
     Map<String, String> requestBody = {
       'access_token': UserDetails.accessToken,
-      'offset': '0',
-      'limit': '12',
     };
 
     // Add filter parameters

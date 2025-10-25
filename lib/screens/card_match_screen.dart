@@ -66,7 +66,7 @@ class _CardMatchScreenState extends State<CardMatchScreen> {
         _setDummyUsers();
         return;
       }
-
+      print('Token found');
       final url = Uri.parse('${SocialLoginService.baseUrl}/users/random_users');
 
       // Manually encode for x-www-form-urlencoded (like curl)
