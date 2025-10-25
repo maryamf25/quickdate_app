@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
-
+import '../utils/user_details.dart'; // for access_token
+import 'random_user_profile_screen.dart'; // new screen
+import 'social_login_service.dart';
 class TrendingScreen extends StatefulWidget {
   const TrendingScreen({super.key});
 
@@ -10,7 +14,8 @@ class TrendingScreen extends StatefulWidget {
 
 class _TrendingScreenState extends State<TrendingScreen> {
   late final PageController _pageController;
-  final List<int> items = List<int>.generate(6, (i) => i);
+  List<dynamic> _friends = [];
+  bool _isLoading = true;
 
   static const double horizontalPadding = 10;
   static const double maxCardWidth = 420;
@@ -20,6 +25,35 @@ class _TrendingScreenState extends State<TrendingScreen> {
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 0.85);
+    _fetchFriends();
+  }
+
+  Future<void> _fetchFriends() async {
+    final url = Uri.parse('${SocialLoginService.baseUrl}/users/random_users');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken ?? '',
+          'offset': '0',
+          'limit': '12',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _friends = data['data'] ?? [];
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error fetching friends: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -32,11 +66,15 @@ class _TrendingScreenState extends State<TrendingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Explore')),
-      body: CustomScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : CustomScrollView(
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(horizontalPadding, 10, horizontalPadding, 0),
-            sliver: const SliverToBoxAdapter(child: StoriesBar()),
+            sliver: SliverToBoxAdapter(
+              child: StoriesBar(friends: _friends),
+            ),
           ),
 
           SliverPadding(
@@ -49,7 +87,10 @@ class _TrendingScreenState extends State<TrendingScreen> {
                     'HOT OR NOT',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0),
                   ),
-                  Text('See all', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 14)),
+                  Text(
+                    'See all',
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 14),
+                  ),
                 ],
               ),
             ),
@@ -62,14 +103,29 @@ class _TrendingScreenState extends State<TrendingScreen> {
                 height: MediaQuery.of(context).size.width * cardAspect,
                 child: PageView.builder(
                   controller: _pageController,
-                  itemCount: items.length,
+                  itemCount: _friends.length,
                   padEnds: true,
                   itemBuilder: (context, index) {
+                    final user = _friends[index];
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: maxCardWidth),
-                        child: const _TrendingCard(),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => RandomUserProfileScreen(user: user),
+                              ),
+                            );
+                          },
+                          child: _TrendingCard(
+                            name: user['username'] ?? '',
+                            country: user['country_txt'] ?? '',
+                            imageUrl: user['avater'] ?? '',
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -78,18 +134,18 @@ class _TrendingScreenState extends State<TrendingScreen> {
             ),
           ),
 
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 20),
-            sliver: const SliverToBoxAdapter(
-              child: UserProfileCard(
-                nameAndAge: 'Begovsky, 22',
-                lastSeen: '2 hours ago',
-                imageUrl: '',
-                isOnline: true,
-                showLikeAnimation: false,
+          if (_friends.isNotEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 20),
+              sliver: SliverToBoxAdapter(
+                child: UserProfileCard(
+                  nameAndAge: _friends[0]['username'] ?? 'Unknown',
+                  lastSeen: 'Recently active',
+                  imageUrl: _friends[0]['avater'] ?? '',
+                  isOnline: true,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -97,20 +153,19 @@ class _TrendingScreenState extends State<TrendingScreen> {
 }
 
 class StoriesBar extends StatelessWidget {
-  final List<Map<String, String>> stories;
-  const StoriesBar({
-    super.key,
-    this.stories = const [
-      {'name': 'Your Story', 'image': ''},
-      {'name': 'waelanjo', 'image': 'https://picsum.photos/200?1'},
-      {'name': 'alex', 'image': 'https://picsum.photos/200?2'},
-      {'name': 'sara', 'image': 'https://picsum.photos/200?3'},
-      {'name': 'mike', 'image': 'https://picsum.photos/200?4'},
-    ],
-  });
+  final List<dynamic> friends;
+  const StoriesBar({super.key, required this.friends});
 
   @override
   Widget build(BuildContext context) {
+    final List<Map<String, String>> stories = [
+      {'name': 'Your Story', 'image': ''},
+      ...friends.map((f) => {
+        'name': f['username'] ?? '',
+        'image': f['avater'] ?? '',
+      }),
+    ];
+
     return SizedBox(
       height: 100,
       child: ListView.separated(
@@ -127,6 +182,17 @@ class StoriesBar extends StatelessWidget {
               name: item['name'] ?? '',
               imageUrl: item['image'] ?? '',
               isAdd: isAdd,
+              onTap: !isAdd
+                  ? () {
+                final user = friends[index - 1];
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RandomUserProfileScreen(user: user),
+                  ),
+                );
+              }
+                  : null,
             ),
           );
         },
@@ -217,7 +283,16 @@ class StoryItem extends StatelessWidget {
 }
 
 class _TrendingCard extends StatelessWidget {
-  const _TrendingCard({super.key});
+  final String name;
+  final String country;
+  final String imageUrl;
+
+  const _TrendingCard({
+    super.key,
+    required this.name,
+    required this.country,
+    required this.imageUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -234,14 +309,16 @@ class _TrendingCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.asset(
-                  'assets/imageplaceholder.jpg',
+                imageUrl.isNotEmpty
+                    ? Image.network(
+                  imageUrl,
                   fit: BoxFit.cover,
                   errorBuilder: (c, e, s) => Container(
                     color: Colors.grey[300],
                     child: const Icon(Icons.image, size: 48, color: Colors.white70),
                   ),
-                ),
+                )
+                    : Image.asset('assets/imageplaceholder.jpg', fit: BoxFit.cover),
                 Positioned(
                   right: 12,
                   bottom: 12,
@@ -268,13 +345,10 @@ class _TrendingCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'waelanjo',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                SizedBox(height: 4),
-                Text('Los Angeles', style: TextStyle(fontSize: 14)),
+              children: [
+                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(country, style: const TextStyle(fontSize: 14)),
               ],
             ),
           ),
@@ -335,11 +409,7 @@ class UserProfileCard extends StatelessWidget {
           AspectRatio(
             aspectRatio: 16 / 9,
             child: imageUrl.isNotEmpty
-                ? Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (c, e, s) => Container(color: Colors.grey[300]),
-            )
+                ? Image.network(imageUrl, fit: BoxFit.cover)
                 : Container(color: Colors.grey[300]),
           ),
           Positioned.fill(
@@ -374,27 +444,16 @@ class UserProfileCard extends StatelessWidget {
           Positioned(
             left: 12,
             bottom: 12,
-            child: Text(
-              lastSeen,
-              style: const TextStyle(color: Colors.white, fontSize: 11),
-            ),
+            child: Text(lastSeen, style: const TextStyle(color: Colors.white, fontSize: 11)),
           ),
           if (isOnline)
-            const Positioned(
-              right: 18,
-              bottom: 18,
-              child: _OnlineDot(),
-            ),
+            const Positioned(right: 18, bottom: 18, child: _OnlineDot()),
           Positioned(
             right: 12,
             top: 12,
             child: GestureDetector(
               onTap: onLikePressed,
-              child: const Icon(
-                Icons.favorite_border,
-                color: Colors.white,
-                size: 20,
-              ),
+              child: const Icon(Icons.favorite_border, color: Colors.white, size: 20),
             ),
           ),
           if (showLikeAnimation)
@@ -404,11 +463,7 @@ class UserProfileCard extends StatelessWidget {
               width: 66,
               height: 66,
               child: IgnorePointer(
-                child: Lottie.asset(
-                  'assets/LikeHeart.json',
-                  fit: BoxFit.contain,
-                  repeat: false,
-                ),
+                child: Lottie.asset('assets/LikeHeart.json', fit: BoxFit.contain, repeat: false),
               ),
             ),
         ],
