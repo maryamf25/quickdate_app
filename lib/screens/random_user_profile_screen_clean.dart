@@ -5,7 +5,6 @@ import '../utils/user_details.dart';
 import 'social_login_service.dart';
 import 'chat_conversation_screen.dart';
 
-
 class RandomUserProfileScreen extends StatefulWidget {
   final Map<String, dynamic> user;
 
@@ -83,6 +82,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
       });
     }
   }
+
   // Check if user is already a favorite
   Future<void> _checkIfFavorite() async {
     final apiUrl = '${SocialLoginService.baseUrl}/users/list_favorites';
@@ -238,7 +238,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     }
   }
 
-// Toggle like
+  // Toggle like
   Future<void> _toggleLike() async {
     setState(() {
       isLikeLoading = true;
@@ -326,7 +326,6 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-
 
     return Scaffold(
       appBar: AppBar(
@@ -469,7 +468,8 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                     const SizedBox(width: 30),
                     _buildBottomActionButton(Icons.close, () {
                       Navigator.pop(context); // This will close the current screen
-                    }),                    const SizedBox(width: 30),
+                    }),
+                    const SizedBox(width: 30),
                     _buildBottomActionButton(Icons.favorite, _toggleLike,
                         isPink: isLiked),
                   ],
@@ -523,316 +523,3 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     );
   }
 }
-
-// Simple Chat Screen Implementation
-class SimpleChatScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-
-  const SimpleChatScreen({super.key, required this.user});
-
-  @override
-  State<SimpleChatScreen> createState() => _SimpleChatScreenState();
-}
-
-class _SimpleChatScreenState extends State<SimpleChatScreen> {
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final List<Map<String, dynamic>> _messages = [];
-  bool _sending = false;
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _sendMessage() async {
-    final message = _messageController.text.trim();
-    if (message.isEmpty || _sending) return;
-
-    setState(() => _sending = true);
-
-    try {
-      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_message');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'access_token': UserDetails.accessToken,
-          'recipient_id': widget.user['id'].toString(),
-          'message': message,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 200) {
-          // Add message to local list
-          setState(() {
-            _messages.add({
-              'text': message,
-              'from_id': UserDetails.userId,
-              'time': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            });
-          });
-
-          _messageController.clear();
-          _scrollToBottom();
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Message sent successfully!')),
-          );
-        } else {
-          _showError('Failed to send message: ${data['message'] ?? 'Unknown error'}');
-        }
-      } else {
-        _showError('Failed to send message');
-      }
-    } catch (e) {
-      _showError('Failed to send message: $e');
-    } finally {
-      setState(() => _sending = false);
-    }
-  }
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final username = widget.user['username'] ?? 'Unknown User';
-    final avatar = widget.user['avater'] ?? '';
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.grey[300],
-              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
-              child: avatar.isEmpty
-                ? Icon(Icons.person, color: Colors.grey[600], size: 20)
-                : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                username,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.call),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Voice call feature coming soon')),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.videocam),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Video call feature coming soon')),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _messages.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.chat_bubble_outline,
-                        size: 80,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No messages yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Start the conversation with ${username}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, index) {
-                    final message = _messages[index];
-                    final isMe = message['from_id'].toString() == UserDetails.userId.toString();
-                    final text = message['text'] ?? '';
-                    final time = DateTime.fromMillisecondsSinceEpoch(
-                      message['time'] * 1000,
-                    );
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                        children: [
-                          if (!isMe) ...[
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Colors.grey[300],
-                              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
-                              child: avatar.isEmpty
-                                ? Icon(Icons.person, size: 16, color: Colors.grey[600])
-                                : null,
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isMe
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey[300],
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    text,
-                                    style: TextStyle(
-                                      color: isMe ? Colors.white : Colors.black87,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
-                                    style: TextStyle(
-                                      color: isMe ? Colors.white70 : Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (isMe) ...[
-                            const SizedBox(width: 8),
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Colors.grey[300],
-                              backgroundImage: UserDetails.avatar.isNotEmpty
-                                ? NetworkImage(UserDetails.avatar)
-                                : null,
-                              child: UserDetails.avatar.isEmpty
-                                ? Icon(Icons.person, size: 16, color: Colors.grey[600])
-                                : null,
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  },
-                ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                      ),
-                      maxLines: null,
-                      textCapitalization: TextCapitalization.sentences,
-                      onSubmitted: (_) => _sendMessage(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: _sending
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Icon(Icons.send, color: Colors.white),
-                      onPressed: _sending ? null : _sendMessage,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-

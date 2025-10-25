@@ -8,6 +8,7 @@ import 'my_account_screen.dart';
 import 'card_match_screen.dart';
 import 'trending_screen.dart';
 import 'notifications_screen.dart';
+import 'chats_screen.dart';
 import 'main_settings.dart';
 import 'social_links_screen.dart';
 import 'blocked_user_screen.dart';
@@ -38,10 +39,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _screens = [
-      const CardMatchScreen(),
-      const TrendingScreen(),
-      const NotificationsScreen(),
-      _SettingsTab(),
+      const CardMatchScreen(),      // Index 0: Match
+      const TrendingScreen(),       // Index 1: Trending
+      const NotificationsScreen(),  // Index 2: Alerts
+      const ChatsScreen(),          // Index 3: Chats
+      _SettingsTab(),              // Index 4: Settings
     ];
     _initializeSettings();
   }
