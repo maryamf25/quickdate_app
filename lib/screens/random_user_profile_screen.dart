@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../utils/user_details.dart'; // Contains accessToken
-import 'social_login_service.dart'; // Contains baseUrl
+import '../utils/user_details.dart';
+import 'social_login_service.dart';
+import 'chat_screen.dart';
+
 
 class RandomUserProfileScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -10,110 +12,285 @@ class RandomUserProfileScreen extends StatefulWidget {
   const RandomUserProfileScreen({super.key, required this.user});
 
   @override
-  State<RandomUserProfileScreen> createState() => _RandomUserProfileScreenState();
+  State<RandomUserProfileScreen> createState() =>
+      _RandomUserProfileScreenState();
 }
 
 class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
   bool isFavorite = false;
-  bool loadingFavorite = true;
+  bool isFriendAdded = false;
+  bool isLiked = false;
+  bool isLoading = true;
+  bool isFavoriteLoading = false;
+  bool isFriendLoading = false;
+  bool isLikeLoading = false;
+  bool isGiftLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _checkIfFavorite();
+    _initializeStates();
   }
 
-  Future<void> _checkIfFavorite() async {
+  Future<void> _initializeStates() async {
+    await Future.wait([_checkIfFavorite(), _checkIfFriend()]);
+    setState(() => isLoading = false);
+  }
+
+  Future<void> _sendGift() async {
+    setState(() {
+      isGiftLoading = true;
+    });
+
+    final apiUrl = '${SocialLoginService.baseUrl}/users/send_gift';
+
     try {
-      final url = Uri.parse('${SocialLoginService.baseUrl}/users/list_favorites');
-      final response = await http.post(url,
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: {'access_token': UserDetails.accessToken, 'offset': '0', 'limit': '100'});
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'to_userid': widget.user['id'].toString(),
+          'gift_id': '1', // Replace with dynamic gift id if needed
+        },
+      );
+
+      final data = json.decode(response.body);
+      if (data['code'] == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Gift sent successfully!'),
+            backgroundColor: Colors.black,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['errors']?['error_text'] ?? 'Could not send gift'),
+            backgroundColor: Colors.pink,
+          ),
+        );
+      }
+
+    } catch (e) {
+      print('Error sending gift: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error sending gift')),
+      );
+    } finally {
+      setState(() {
+        isGiftLoading = false;
+      });
+    }
+  }
+  // Check if user is already a favorite
+  Future<void> _checkIfFavorite() async {
+    final apiUrl = '${SocialLoginService.baseUrl}/users/list_favorites';
+    final accessToken = UserDetails.accessToken;
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': accessToken,
+          'offset': '0',
+          'limit': '100',
+        },
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List favorites = data['data'] ?? [];
-        final favUserIds = favorites.map((e) => e['fav_user_id']).toList();
+        final randomUserId = widget.user['id'];
+        final exists = favorites.any((f) => f['userData']['id'] == randomUserId);
         setState(() {
-          isFavorite = favUserIds.contains(widget.user['id']);
-          loadingFavorite = false;
+          isFavorite = exists;
         });
       } else {
-        setState(() {
-          loadingFavorite = false;
-        });
+        print('Error fetching favorites: ${response.body}');
       }
     } catch (e) {
-      setState(() {
-        loadingFavorite = false;
-      });
+      print('Exception fetching favorites: $e');
     }
   }
 
-  Future<void> _toggleFavorite() async {
-    print("toglling favorite for user ID: ${widget.user['id']}");
-    final uid = widget.user['id'];
-    if (uid == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('User ID is missing!')));
-      return;
-    }
-
-    // Immediately toggle state for optimistic UI update
-    setState(() {
-      isFavorite = !isFavorite;
-    });
-
-    final endpoint = isFavorite ? 'add_favorites' : 'remove_favorites'; // Endpoint depends on new state
-    final url = Uri.parse('${SocialLoginService.baseUrl}/users/$endpoint');
-
+  // Check if user is liked
+  Future<void> _checkIfLiked() async {
+    final apiUrl = '${SocialLoginService.baseUrl}/users/list_likes'; // Assuming list_likes endpoint
     try {
-      final response = await http.post(url,
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: {'access_token': UserDetails.accessToken, 'uid': uid.toString()});
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'offset': '0',
+          'limit': '100',
+        },
+      );
 
       if (response.statusCode == 200) {
-        final res = json.decode(response.body);
-        if (res['success'] == 1) { // Assuming a success field in response
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(isFavorite
-                  ? 'Added to favorites!'
-                  : 'Removed from favorites!')));
-        } else {
-          // If API call failed, revert the optimistic UI update
-          setState(() {
-            isFavorite = !isFavorite;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(res['errors']?['error_text'] ?? 'Failed to update favorite status')));
-        }
-      } else {
-        // If API call failed, revert the optimistic UI update
+        final data = json.decode(response.body);
+        final List likes = data['data'] ?? [];
+        final currentUserId = widget.user['id'];
+        final exists = likes.any((like) => like['id'] == currentUserId);
         setState(() {
-          isFavorite = !isFavorite;
+          isLiked = exists;
         });
-        final res = json.decode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(res['errors']?['error_text'] ?? 'Network error, please try again')));
       }
     } catch (e) {
-      // If API call failed, revert the optimistic UI update
-      setState(() {
-        isFavorite = !isFavorite;
-      });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      print('Error checking likes: $e');
     }
   }
 
+  // Check if user is already a friend
+  Future<void> _checkIfFriend() async {
+    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friends';
+    final accessToken = UserDetails.accessToken;
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': accessToken,
+          'offset': '0',
+          'limit': '100',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List friends = data['data'] ?? [];
+        final currentUserId = widget.user['id'];
+        final exists = friends.any((friend) => friend['id'] == currentUserId);
+
+        setState(() {
+          isFriendAdded = exists;
+        });
+      } else {
+        print('Error fetching friends: ${response.body}');
+      }
+    } catch (e) {
+      print('Exception fetching friends: $e');
+    }
+  }
+
+  // Toggle favorite
+  Future<void> _toggleFavorite() async {
+    setState(() {
+      isFavoriteLoading = true;
+    });
+
+    final apiUrl = isFavorite
+        ? '${SocialLoginService.baseUrl}/users/delete_favorites'
+        : '${SocialLoginService.baseUrl}/users/add_favorites';
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'uid': widget.user['id'].toString(),
+        },
+      );
+
+      final data = json.decode(response.body);
+      print(data['message'] ?? data['errors']?['error_text'] ?? 'Unknown');
+      setState(() {
+        isFavorite = !isFavorite; // toggle state only after API success
+      });
+      print("Favorite status: $isFavorite widget user: ${widget.user['username'].toString()}");
+
+      _checkIfFavorite();
+    } catch (e) {
+      print('Exception toggling favorite: $e');
+    } finally {
+      setState(() {
+        isFavoriteLoading = false;
+      });
+    }
+  }
+
+  // Toggle friend
+  Future<void> _toggleFriend() async {
+    setState(() {
+      isFriendAdded = !isFriendAdded;
+    });
+
+    final apiUrl = '${SocialLoginService.baseUrl}/users/add_friend';
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'uid': widget.user['id'].toString(),
+        },
+      );
+
+      final data = json.decode(response.body);
+      print(data['message'] ?? data['errors']?['error_text'] ?? 'Unknown');
+    } catch (e) {
+      print('Exception toggling friend: $e');
+    }
+  }
+
+// Toggle like
+  Future<void> _toggleLike() async {
+    setState(() {
+      isLikeLoading = true;
+    });
+
+    final apiUrl = isLiked
+        ? '${SocialLoginService.baseUrl}/users/delete_like'
+        : '${SocialLoginService.baseUrl}/users/add_likes';
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: isLiked
+            ? {
+          'access_token': UserDetails.accessToken,
+          'user_likeid': widget.user['id'].toString(),
+        }
+            : {
+          'access_token': UserDetails.accessToken,
+          'likes': widget.user['id'].toString(),
+        },
+      );
+
+      final data = json.decode(response.body);
+      print(data['message'] ?? data['errors']?['error_text'] ?? 'Unknown');
+
+      setState(() {
+        isLiked = !isLiked;
+      });
+    } catch (e) {
+      print('Error toggling like: $e');
+    } finally {
+      setState(() {
+        isLikeLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final String name = widget.user['username'] ?? 'Unknown';
     final String avatar = widget.user['avater'] ?? '';
 
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -125,14 +302,15 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
           IconButton(
             icon: const Icon(Icons.more_vert, color: Colors.white),
             onPressed: () {},
-          )
+          ),
         ],
       ),
+      extendBodyBehindAppBar: true,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top avatar section
+            // Top Section
             Container(
               height: 250,
               decoration: avatar.isNotEmpty
@@ -154,30 +332,55 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildActionButton(Icons.star_border, () {}, color: Colors.white),
+                      _buildActionButton(Icons.star_border, _toggleFavorite,
+                          color: isFavorite ? Colors.yellow : Colors.white),
                       const SizedBox(width: 20),
-                      _buildActionButton(Icons.card_giftcard, () {}, color: Colors.white),
+                      _buildActionButton(Icons.card_giftcard, _sendGift,
+                          color: Colors.white),
                       const SizedBox(width: 20),
-                      _buildActionButton(Icons.person_add_alt, () {}, color: Colors.white),
+                      _buildActionButton(Icons.person_add_alt, _toggleFriend,
+                          color: isFriendAdded ? Colors.green : Colors.white),
                     ],
                   ),
                 ),
               ),
             ),
+
+            Padding(
+              padding:
+              const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.verified, color: Colors.green, size: 20),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, color: Colors.black),
+                    onPressed: () {},
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // User avatar
                   Container(
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
                       image: avatar.isNotEmpty
-                          ? DecorationImage(image: NetworkImage(avatar), fit: BoxFit.cover)
+                          ? DecorationImage(
+                          image: NetworkImage(avatar), fit: BoxFit.cover)
                           : null,
                       color: avatar.isEmpty ? Colors.grey[200] : null,
                     ),
@@ -186,11 +389,6 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                         : null,
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    name,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
                   const Text(
                     'More info',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -214,6 +412,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                 ],
               ),
             ),
+
             const SizedBox(height: 80),
             Align(
               alignment: Alignment.bottomCenter,
@@ -222,17 +421,23 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildBottomActionButton(Icons.chat, () {}),
-                    const SizedBox(width: 30),
-                    _buildBottomActionButton(Icons.close, () {}),
-                    const SizedBox(width: 30),
-                    loadingFavorite
-                        ? const CircularProgressIndicator()
-                        : _buildBottomActionButton(
-                      isFavorite ? Icons.star : Icons.star_border,
-                      _toggleFavorite,
-                      isPink: true,
+                    _buildBottomActionButton(
+                      Icons.chat,
+                          () {
+                        // Navigate to the ChatScreen when the button is pressed
+                        Navigator.push(
+                          context, // Make sure 'context' is available in this scope
+                          MaterialPageRoute(builder: (context) => const ChatScreen()),
+                        );
+                      },
+                      isPink: isFavorite,
                     ),
+                    const SizedBox(width: 30),
+                    _buildBottomActionButton(Icons.close, () {
+                      Navigator.pop(context); // This will close the current screen
+                    }),                    const SizedBox(width: 30),
+                    _buildBottomActionButton(Icons.favorite, _toggleLike,
+                        isPink: isLiked),
                   ],
                 ),
               ),
@@ -243,7 +448,8 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, VoidCallback onPressed, {Color color = Colors.black}) {
+  Widget _buildActionButton(IconData icon, VoidCallback onPressed,
+      {Color color = Colors.black}) {
     return Container(
       width: 50,
       height: 50,
@@ -251,7 +457,10 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
         color: Colors.white.withOpacity(0.3),
         shape: BoxShape.circle,
       ),
-      child: IconButton(icon: Icon(icon, color: color, size: 28), onPressed: onPressed),
+      child: IconButton(
+        icon: Icon(icon, color: color, size: 28),
+        onPressed: onPressed,
+      ),
     );
   }
 
@@ -264,7 +473,8 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     );
   }
 
-  Widget _buildBottomActionButton(IconData icon, VoidCallback onPressed, {bool isPink = false}) {
+  Widget _buildBottomActionButton(IconData icon, VoidCallback onPressed,
+      {bool isPink = false}) {
     return Container(
       width: 60,
       height: 60,
