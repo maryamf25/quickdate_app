@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -15,6 +16,7 @@ class SocialLoginService {
   // Use the correct Web Client ID you provided — this is required on the web to obtain an idToken
   static const String? googleWebClientId =
       '716215768781-1riglii0rihhc9gmp53qad69tt8o2e03.apps.googleusercontent.com';
+
 
   static Future<String?> getAccessToken() async {
     try {
@@ -205,6 +207,164 @@ class SocialLoginService {
       return null;
     }
   }
+
+  //================ Facebook Sign In =================
+  static Future<Map<String, dynamic>?> signInWithFacebook() async {
+    try {
+      debugPrint('🔐 Starting Facebook sign-in...');
+
+      // Initialize Facebook Auth for web platform
+      if (kIsWeb) {
+        debugPrint('🌐 Initializing Facebook for web...');
+        try {
+          await FacebookAuth.instance.webAndDesktopInitialize(
+            appId: "1283939128813964",
+            cookie: true,
+            xfbml: true,
+            version: "v18.0",
+          );
+          debugPrint('✅ Facebook web initialization complete');
+        } catch (initError) {
+          debugPrint('❌ Facebook web initialization failed: $initError');
+          // Try to continue anyway - sometimes this error is not critical
+        }
+      }
+
+      debugPrint('📱 Attempting Facebook login...');
+
+      // Request Facebook login with email and public profile permissions
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      debugPrint('📝 Facebook login result status: ${result.status}');
+
+      if (result.status == LoginStatus.success) {
+        debugPrint('✅ Facebook login successful');
+
+        // Get the access token
+        final AccessToken accessToken = result.accessToken!;
+        debugPrint('🔐 Facebook token received (${accessToken.token.length} chars)');
+
+        // Get user data from Facebook
+        final userData = await FacebookAuth.instance.getUserData(
+          fields: "id,name,email,picture.width(200).height(200)",
+        );
+
+        debugPrint('👤 Facebook user data: ${userData.toString()}');
+
+        return _handleFacebookAuthentication(accessToken, userData);
+
+      } else if (result.status == LoginStatus.cancelled) {
+        debugPrint('❌ Facebook login cancelled by user');
+        return null;
+      } else if (result.status == LoginStatus.failed) {
+        debugPrint('❌ Facebook login failed: ${result.message}');
+        debugPrint('💡 Possible causes:');
+        debugPrint('   - Facebook app not configured for web');
+        debugPrint('   - Invalid App ID or app disabled');
+        debugPrint('   - Missing OAuth redirect URIs');
+        debugPrint('   - App not in live mode or user not added as tester');
+        return null;
+      } else {
+        debugPrint('❌ Facebook login unknown status: ${result.status} - ${result.message}');
+        return null;
+      }
+    } catch (e, st) {
+      debugPrint('❌ Facebook Sign-In error: $e');
+      debugPrint('📋 Stack trace: $st');
+
+      // Provide specific error guidance
+      String errorMessage = e.toString();
+      if (errorMessage.contains('MissingPluginException')) {
+        debugPrint('💡 This error usually means Facebook SDK is not properly configured for web');
+      } else if (errorMessage.contains('PlatformException')) {
+        debugPrint('💡 Platform-specific error - check Facebook app configuration');
+      }
+
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> _handleFacebookAuthentication(
+    AccessToken accessToken,
+    Map<String, dynamic> userData,
+  ) async {
+    try {
+      // Extract user information
+      final String email = userData['email'] ?? '';
+      final String name = userData['name'] ?? '';
+      final String id = userData['id'] ?? '';
+      final String avatarUrl = userData['picture']?['data']?['url'] ?? '';
+
+      // Split name into first and last
+      final nameParts = name.split(' ');
+      final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+      final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+      debugPrint('📤 Sending Facebook data to backend...');
+
+      // Send to backend API
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/social-login'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': accessToken.token,
+          'provider': 'facebook',
+          'mobile_device_id': UserDetails.deviceId.isNotEmpty
+              ? UserDetails.deviceId
+              : "device_\u007f${DateTime.now().millisecondsSinceEpoch}",
+          'email': email,
+          'first_name': firstName,
+          'last_name': lastName,
+          'avatar': avatarUrl,
+          'facebook_id': id,
+        },
+      );
+
+      debugPrint('📤 Facebook social login response: ${response.statusCode}');
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          // Store the access token returned by backend (session token)
+          if (data['data']['access_token'] != null) {
+            await saveAccessToken(data['data']['access_token'].toString());
+          }
+          // Store the user data
+          await saveUserData(Map<String, dynamic>.from(data['data']));
+          return Map<String, dynamic>.from(data['data']);
+        }
+      }
+      return null;
+    } catch (e, st) {
+      debugPrint('❌ Facebook API error: $e');
+      debugPrint(st.toString());
+      return null;
+    }
+  }
+
+  //================ Sign Out =================
+  static Future<void> signOut() async {
+    try {
+      // Sign out from Google
+      final googleSignIn = _createGoogleSignIn();
+      await googleSignIn.signOut();
+
+      // Sign out from Facebook
+      await FacebookAuth.instance.logOut();
+
+      // Clear local storage
+      final box = await Hive.openBox('loginbox');
+      await box.clear();
+      accessToken = null;
+
+      debugPrint('✅ Successfully signed out from all providers');
+    } catch (e) {
+      debugPrint('❌ Error during sign out: $e');
+    }
+  }
   static Future<Map<String, dynamic>?> addLikesDislikes({
     required String accessToken,
     required String targetUserId,
@@ -251,115 +411,56 @@ class SocialLoginService {
   }
 
 
-  //================ Facebook Sign In =================
-  static Future<Map<String, dynamic>?> signInWithFacebook() async {
+
+  // ---------------- Transactions helper ----------------
+  static Future<Map<String, dynamic>?> getTransactions({required int limit, required int offset}) async {
     try {
-      final result = await FacebookAuth.instance.login(permissions: ['email', 'public_profile']);
-      if (result.status != LoginStatus.success) return null;
-
-      final fbToken = result.accessToken!.tokenString;
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/users/social-login'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'access_token': fbToken,
-          'provider': 'facebook',
-          'device_id': UserDetails.deviceId.isNotEmpty
-              ? UserDetails.deviceId
-              : "device_${DateTime.now().millisecondsSinceEpoch}",
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['data'] != null) return data['data'];
-      }
-      return null;
-    } catch (e) {
-      debugPrint('Facebook Sign-In error: $e');
-      return null;
-    }
-  }
-
-  static Future<Map<String, dynamic>?> getTransactions({
-    required int limit,
-    required int offset,
-  }) async {
-    try {
-      debugPrint('📱 Starting transaction fetch...');
       final token = await getAccessToken();
-
       if (token == null) {
-        debugPrint('❌ No access token available');
+        debugPrint('❌ No access token available for transactions');
         return null;
       }
 
-      debugPrint('🔑 Using token: ${token.substring(0, 10)}...');
-
-      // Get current user ID first
+      // Get current user ID
       final userBox = await Hive.openBox('loginbox');
       final userData = userBox.get('user_data');
       String userId = '0';
-
       if (userData != null && userData['id'] != null) {
         userId = userData['id'].toString();
       }
 
-      debugPrint('👤 User ID: $userId');
-
-      final Map<String, String> body = {
-        'access_token': token,
-        'user_id': userId,
-        'fetch': 'payments',
-      };
-
-      debugPrint('📤 Request body: $body');
-
       final response = await http.post(
         Uri.parse('$baseUrl/users/profile'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: body,
+        body: {
+          'access_token': token,
+          'user_id': userId,
+          'fetch': 'payments',
+          'limit': limit.toString(),
+          'offset': offset.toString(),
+        },
       );
 
-      debugPrint('📊 Response status: ${response.statusCode}');
-      debugPrint('📄 Response body: ${response.body}');
-
       if (response.statusCode == 200) {
-        // Handle mixed response (HTML + JSON)
         String responseBody = response.body;
         if (responseBody.contains('<')) {
-          // Extract JSON from mixed response
           int jsonStart = responseBody.indexOf('{');
           if (jsonStart != -1) {
             responseBody = responseBody.substring(jsonStart);
             int jsonEnd = responseBody.lastIndexOf('}');
-            if (jsonEnd != -1) {
-              responseBody = responseBody.substring(0, jsonEnd + 1);
-            }
+            if (jsonEnd != -1) responseBody = responseBody.substring(0, jsonEnd + 1);
           }
         }
 
         final data = jsonDecode(responseBody);
-        debugPrint('✅ Parsed response data successfully');
-
-        // Transform the response to match expected format
         if (data['code'] == 200 && data['data'] != null && data['data']['payments'] != null) {
-          return {
-            'code': 200,
-            'data': data['data']['payments'],
-            'message': 'Transactions fetched successfully'
-          };
+          return {'code': 200, 'data': data['data']['payments'], 'message': 'Transactions fetched successfully'};
         } else {
-          return {
-            'code': 200,
-            'data': [],
-            'message': 'No transactions found'
-          };
+          return {'code': 200, 'data': [], 'message': 'No transactions found'};
         }
       }
 
-      debugPrint('❌ Request failed with status: ${response.statusCode}');
+      debugPrint('❌ Transactions request failed with status: ${response.statusCode}');
       return null;
     } catch (e) {
       debugPrint('❌ Error fetching transactions: $e');
@@ -367,35 +468,4 @@ class SocialLoginService {
     }
   }
 
-  static Future<Map<String, dynamic>?> getPaymentHistory({
-    required int limit,
-    required int offset,
-  }) async {
-    try {
-      final token = await getAccessToken();
-      if (token == null) {
-        debugPrint('❌ No access token found');
-        return null;
-      }
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/wallet/get_payment_history'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'access_token': token,
-          'limit': limit.toString(),
-          'offset': offset.toString(),
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data;
-      }
-      return null;
-    } catch (e) {
-      debugPrint('❌ Error fetching payment history: $e');
-      return null;
-    }
-  }
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'social_login_service.dart';
 import '../utils/app_settings.dart';
@@ -35,7 +36,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(() {
-      if (_tabController.indexIsChanging) {
+      // Update current index whenever the controller's index differs from
+      // our tracked index. Using indexIsChanging alone can miss some
+      // changes on certain platforms (web), so compare directly.
+      if (_tabController.index != _currentTabIndex) {
         setState(() {
           _currentTabIndex = _tabController.index;
         });
@@ -148,23 +152,40 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         _checkedPremium = true;
       });
 
-      if (isPro) await _fetchNotifications();
+      // Fetch notifications for all users (premium and non-premium).
+      // Non-premium users are allowed to see Matches/Visits/Requests; only
+      // the Likes tab is locked UI-wise. Previously we only fetched for
+      // premium users which left non-premium users in a permanent loading
+      // state (_loading stayed true). Always fetch so lists populate.
+      await _fetchNotifications();
     } catch (e) {
       // If anything goes wrong, treat as non-premium but mark checked
       setState(() {
         _isPremiumUser = false;
         _checkedPremium = true;
       });
+
+      // Still attempt to fetch notifications so the UI doesn't remain
+      // stuck on the loading spinner when the premium check fails.
+      try {
+        await _fetchNotifications();
+      } catch (_) {
+        // ignore fetch failure here — _fetchNotifications already logs errors
+      }
     }
   }
 
   Future<void> _fetchNotifications() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+    });
+    print('🔄 [_fetchNotifications] started, _loading set to true');
     try {
       final String? accessToken = await SocialLoginService.getAccessToken();
       if (accessToken == null) {
         print('❌ No access token found');
         setState(() => _loading = false);
+        print('🔄 [_fetchNotifications] ended early (no token), _loading set to false');
         return;
       }
       print('🔑 Retrieved access token: ${accessToken.length} chars');
@@ -214,6 +235,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             _newNotificationCount = data['new_notification_count'] ?? 0;
           });
           _filterNotifications();
+          print('ℹ️ [_fetchNotifications] data loaded: ${list.length} items; filtered: ${_filteredNotifications.length}');
         } else {
           print('❌ Error in response: ${data['errors']}');
           setState(() {
@@ -235,7 +257,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         _filteredNotifications = [];
       });
     }
-    setState(() => _loading = false);
+    setState(() {
+      _loading = false;
+    });
+    print('🔄 [_fetchNotifications] finished, _loading set to false');
   }
 
   bool _isMatchType(String type) {
@@ -285,6 +310,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           _filteredNotifications = _allNotifications;
       }
     });
+    print('🔍 [_filterNotifications] tab=$_currentTabIndex filtered=${_filteredNotifications.length} all=${_allNotifications.length} isPremium=$_isPremiumUser');
   }
 
   Future<void> _handleRequestAction({required bool accept, required dynamic notification}) async {
@@ -551,7 +577,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             ),
           ),
         ),
-      ),
+      )
     );
   }
 
@@ -613,9 +639,79 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
   }
 
+  // Locked view shown only for Likes tab when the user is not premium
+  Widget _buildLockedLikesView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.lock,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Get premium to view who liked you!',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Upgrade to premium to see who liked you and unlock other premium features.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const LoginScreen(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: const Text(
+                'Upgrade to Premium',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Gate build method based on premium status
+    // Debug print every build so we can trace UI state at runtime
+    if (kDebugMode) {
+      print('🧭 build checked=$_checkedPremium loading=$_loading isPremium=$_isPremiumUser tab=$_currentTabIndex filtered=${_filteredNotifications.length} all=${_allNotifications.length}');
+    }
+    // Gate build method while we determine premium status
     if (!_checkedPremium) {
       return Scaffold(
         body: const Center(
@@ -624,85 +720,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       );
     }
 
-    if (!_isPremiumUser && AppSettings.premiumSystemEnabled) {
-      // Show upgrade/login prompt
-      return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.purple.withValues(alpha: 0.1),
-                Colors.white,
-              ],
-            ),
-          ),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.lock,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Premium Feature',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This feature is available for premium users only.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.black54,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Navigate to premium upgrade or login screen
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    child: const Text(
-                      'Upgrade to Premium',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    // NOTE: Previously the UI was fully gated to premium users. We now allow
+    // all users to view Matches/Visits/Requests. The Likes tab (index 2)
+    // shows a locked view for non-premium users when `AppSettings.premiumSystemEnabled`.
 
     return Scaffold(
       body: Container(
@@ -718,137 +738,172 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ),
         child: Column(
           children: [
-            // Custom AppBar with gradient background
-            Container(
-              padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top + 13,
-                left: 16,
-                right: 16,
-                bottom: 0,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.purple.withValues(alpha: 0.3),
-                    Colors.transparent,
+            // Debug banner (visible only in debug builds)
+            if (kDebugMode)
+              Container(
+                color: Colors.black12,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  children: [
+                    Text('checked: ${_checkedPremium ? 'T' : 'F'}', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text('loading: ${_loading ? 'T' : 'F'}', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text('premium: ${_isPremiumUser ? 'T' : 'F'}', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text('tab: $_currentTabIndex', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text('all:${_allNotifications.length}', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text('filtered:${_filteredNotifications.length}', style: const TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
-              child: Column(
-                children: [
-                  // Toolbar
-                  SizedBox(
-                    height: 48,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back),
-                          onPressed: () => Navigator.of(context).pop(),
-                          color: Colors.black87,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Notifications',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+             // Custom AppBar with gradient background
+             Container(
+               padding: EdgeInsets.only(
+                 top: MediaQuery.of(context).padding.top + 13,
+                 left: 16,
+                 right: 16,
+                 bottom: 0,
+               ),
+               decoration: BoxDecoration(
+                 gradient: LinearGradient(
+                   begin: Alignment.topCenter,
+                   end: Alignment.bottomCenter,
+                   colors: [
+                     Colors.purple.withValues(alpha: 0.3),
+                     Colors.transparent,
+                   ],
+                 ),
+               ),
+               child: Column(
+                 children: [
+                   // Toolbar
+                   SizedBox(
+                     height: 48,
+                     child: Row(
+                       children: [
+                         IconButton(
+                           icon: const Icon(Icons.arrow_back),
+                           onPressed: () => Navigator.of(context).pop(),
+                           color: Colors.black87,
+                         ),
+                         const SizedBox(width: 6),
+                         Expanded(
+                           child: Text(
+                             'Notifications',
+                             style: const TextStyle(
+                               fontSize: 20,
+                               fontWeight: FontWeight.bold,
+                               color: Colors.black87,
+                             ),
+                           ),
+                         ),
+                         if (_newNotificationCount > 0)
+                           Container(
+                             padding: const EdgeInsets.symmetric(
+                                 horizontal: 8, vertical: 4),
+                             decoration: BoxDecoration(
+                               color: Colors.red,
+                               borderRadius: BorderRadius.circular(12),
+                             ),
+                             child: Text(
+                               _newNotificationCount.toString(),
+                               style: const TextStyle(
+                                 color: Colors.white,
+                                 fontSize: 12,
+                                 fontWeight: FontWeight.bold,
+                               ),
+                             ),
+                           ),
+                       ],
+                     ),
+                   ),
+                   // Tab Bar
+                   TabBar(
+                     controller: _tabController,
+                     isScrollable: true,
+                     tabAlignment: TabAlignment.center,
+                     indicatorColor: Colors.purple,
+                     indicatorWeight: 2.0,
+                     indicatorSize: TabBarIndicatorSize.label,
+                     labelColor: Colors.purple,
+                     unselectedLabelColor: Colors.grey,
+                     labelStyle: const TextStyle(
+                       fontWeight: FontWeight.bold,
+                       fontSize: 14,
+                     ),
+                     unselectedLabelStyle: const TextStyle(
+                       fontWeight: FontWeight.normal,
+                       fontSize: 14,
+                     ),
+                     tabs: _tabs
+                         .map((tab) => Tab(
+                               child: Container(
+                                 padding: const EdgeInsets.symmetric(
+                                     horizontal: 16, vertical: 8),
+                                 decoration: _currentTabIndex == _tabs.indexOf(tab)
+                                     ? BoxDecoration(
+                                         color: Colors.purple.withValues(alpha: 0.1),
+                                         borderRadius: BorderRadius.circular(20),
+                                       )
+                                     : null,
+                                 child: Text(tab),
+                               ),
+                             ))
+                         .toList(),
+                   ),
+                 ],
+               ),
+             ),
+             // Content Area
+             Expanded(
+               child: RefreshIndicator(
+                 onRefresh: _fetchNotifications,
+                 color: Colors.purple,
+                 child: Stack(
+                  children: [
+                    // Core content: locked likes / empty state / list — shown
+                    // once we have checked premium status regardless of _loading.
+                    (AppSettings.premiumSystemEnabled && !_isPremiumUser && _currentTabIndex == 2)
+                        ? _buildLockedLikesView()
+                        : (_filteredNotifications.isEmpty
+                            ? _buildEmptyState()
+                            : ListView.builder(
+                                padding: const EdgeInsets.only(
+                                  top: 2,
+                                  bottom: 70,
+                                ),
+                                itemCount: _filteredNotifications.length,
+                                itemBuilder: (context, index) {
+                                  return _buildNotificationItem(
+                                      _filteredNotifications[index]);
+                                },
+                              )),
+
+                    // Small inline loading indicator (non-blocking) when background loading
+                    if (_loading)
+                      const Positioned(
+                        right: 16,
+                        top: 12,
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.purple,
                           ),
                         ),
-                        if (_newNotificationCount > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              _newNotificationCount.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Tab Bar
-                  TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.center,
-                    indicatorColor: Colors.purple,
-                    indicatorWeight: 2.0, // must be > 0 to satisfy TabBar assertion
-                    indicatorSize: TabBarIndicatorSize.label,
-                    labelColor: Colors.purple,
-                    unselectedLabelColor: Colors.grey,
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontWeight: FontWeight.normal,
-                      fontSize: 14,
-                    ),
-                    tabs: _tabs
-                        .map((tab) => Tab(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration:
-                        _currentTabIndex == _tabs.indexOf(tab)
-                            ? BoxDecoration(
-                                color:
-                                    Colors.purple.withValues(alpha: 0.1),
-                                borderRadius:
-                                    BorderRadius.circular(20),
-                              )
-                            : null,
-                        child: Text(tab),
                       ),
-                    ))
-                        .toList(),
-                  ),
-                ],
-              ),
-            ),
-            // Content Area
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _fetchNotifications,
-                color: Colors.purple,
-                child: _loading
-                    ? const Center(
-                  child: CircularProgressIndicator(
-                    color: Colors.purple,
-                  ),
-                )
-                    : _filteredNotifications.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                  padding: const EdgeInsets.only(
-                    top: 2,
-                    bottom: 70,
-                  ),
-                  itemCount: _filteredNotifications.length,
-                  itemBuilder: (context, index) {
-                    return _buildNotificationItem(
-                        _filteredNotifications[index]);
-                  },
+                  ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
+               ),
+             ),
+           ],
+         ),
+       ),
     );
-  }
-}
+   }
+ }
 

@@ -8,6 +8,37 @@
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
+  <!-- Facebook SDK for JavaScript -->
+  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+  <script>
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId      : '1283939128813964', // Replace with your valid App ID
+        cookie     : true,
+        xfbml      : true,
+        version    : 'v18.0',
+        status     : true // Check login status
+      });
+
+      // Check if FB SDK loaded properly
+      console.log('✅ Facebook SDK initialized successfully');
+      console.log('📱 App ID:', '1283939128813964');
+
+      // Test FB API availability
+      FB.getLoginStatus(function(response) {
+        console.log('🔍 FB Login Status Check:', response.status);
+      });
+    };
+
+    // Handle FB SDK load errors
+    window.addEventListener('error', function(e) {
+      if (e.filename && e.filename.includes('facebook')) {
+        console.error('❌ Facebook SDK failed to load:', e.message);
+      }
+    });
+  </script>
+
+
   <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.
@@ -40,6 +71,7 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+
+  <script src="flutter_bootstrap.js"></script>
 </body>
 </html>

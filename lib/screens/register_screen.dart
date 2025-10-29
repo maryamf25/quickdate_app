@@ -166,13 +166,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _signWithFacebook() async {
-    setState(() => isLoading = true);
-    final result = await SocialLoginService.signInWithFacebook();
-    setState(() => isLoading = false);
-    if (result != null)
-      await _handleLoginSuccess(result, result['email'] ?? '');
-    else
-      showError("Facebook sign up failed or canceled.");
+    // Facebook sign-up functionality removed - button kept for UI only
+    showError("Facebook sign-up will be available soon.");
   }
 
   Future<void> _handleLoginSuccess(
