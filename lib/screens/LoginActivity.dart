@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text("Login to continue", style: TextStyle(fontSize: 16)),
+                const Text("Login to continue finding partner.", style: TextStyle(fontSize: 16)),
                 const SizedBox(height: 30),
                 _buildInputBox(
                   emailController,
@@ -88,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                     child: const Text(
-                      "Forgot your password?",
+                      "Forgot password?",
                       style: TextStyle(color: Colors.black54, fontSize: 14),
                     ),
                   ),
@@ -268,7 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
               child: Text(
-                "Continue",
+                "continue with",
                 style: TextStyle(
                   color: Colors.black54,
                   fontWeight: FontWeight.w500,
@@ -283,9 +283,53 @@ class _LoginScreenState extends State<LoginScreen> {
           spacing: 12,
           runSpacing: 12,
           alignment: WrapAlignment.center,
-          children: [_buildFacebookButton(), _buildGoogleButton()],
+          children: [
+            _buildGoogleButton(),
+            _buildFacebookButton(),
+            _buildWoWonderButton(),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    return SizedBox(
+      height: 50,
+      child: ElevatedButton(
+        onPressed: _loginWithGoogle,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black87,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30), // pill shape
+            side: const BorderSide(color: Colors.grey, width: 0.6),
+          ),
+          elevation: 2,
+          shadowColor: Colors.black12,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              "assets/images/Google_logo.png", // use the colorful G logo
+              width: 24,
+              height: 24,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              "Google",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -296,10 +340,10 @@ class _LoginScreenState extends State<LoginScreen> {
       child: GestureDetector(
         onTap: _loginWithFacebook,
         child: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
                 color: Colors.black12,
                 blurRadius: 4,
@@ -307,54 +351,41 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
-          child: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 28),
+          child: const Icon(
+            Icons.facebook,
+            color: Color(0xFF1877F2),
+            size: 32,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildGoogleButton() {
+  Widget _buildWoWonderButton() {
     return SizedBox(
       height: 50,
-      child: GestureDetector(
-        onTap: _loginWithGoogle,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          constraints: const BoxConstraints(maxWidth: 200),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.network(
-                'https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png',
-                width: 24,
-                height: 24,
-              ),
-              const SizedBox(width: 8),
-              const Flexible(
-                child: Text(
-                  "Google",
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 16, color: Colors.black87),
-                ),
-              ),
-            ],
-          ),
+      width: 50,
+      child: ElevatedButton(
+        onPressed: () {
+          // TODO: handle WoWonder login here
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFFFFFF),
+          foregroundColor: Colors.white,
+          shape: const CircleBorder(),
+          padding: EdgeInsets.zero,
+          elevation: 2,
+          shadowColor: Colors.black12,
+        ),
+        child: Image.asset(
+          "assets/images/wowonder.png",
+          width: 28,
+          height: 28,
+          fit: BoxFit.contain,
         ),
       ),
     );
   }
-
   Future<void> _loginUser() async {
     String username = emailController.text.trim();
     String password = passwordController.text;
@@ -369,6 +400,8 @@ class _LoginScreenState extends State<LoginScreen> {
         'password': password,
         'mobile_device_id': UserDetails.deviceId,
       };
+      UserDetails.password = passwordController.text.trim();
+
       final response = await http.post(
         Uri.parse('${SocialLoginService.baseUrl}/users/login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -411,94 +444,123 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLoginSuccess(
-    Map<String, dynamic> userData,
-    String username,
-  ) async {
+      Map<String, dynamic> userData,
+      String username,
+      ) async {
+    // ----------------- Basic user info -----------------
     UserDetails.accessToken = userData['access_token'] ?? '';
     UserDetails.userId = userData['user_id'] ?? 0;
+    UserDetails.password = passwordController.text.trim();
 
-    // ✅ Read user_info safely
-    Map<String, dynamic>? userInfoFromResponse = Map<String, dynamic>.from(
+    // ----------------- Read user_info safely -----------------
+    Map<String, dynamic> userInfo = Map<String, dynamic>.from(
       userData['user_info'] ?? {},
     );
-    print(userInfoFromResponse);
-    // ✅ Assign all values safely from user_info
-    UserDetails.username = userInfoFromResponse['username'] ?? username;
+
+    UserDetails.username = userInfo['username'] ?? username;
     UserDetails.fullName =
-        '${userInfoFromResponse['first_name'] ?? ''} ${userInfoFromResponse['last_name'] ?? ''}';
-    UserDetails.email = userInfoFromResponse['email'] ?? ''; // ✅ FIXED HERE
-    UserDetails.country_txt = userInfoFromResponse['country'] ?? '';
-    UserDetails.phone = userInfoFromResponse['phone_number'] ?? '';
-    UserDetails.avatar = userInfoFromResponse['avater'] ?? '';
-    UserDetails.cover = userInfoFromResponse['cover'] ?? '';
-    UserDetails.firstName = userInfoFromResponse['first_name'] ?? '';
-    UserDetails.lastName = userInfoFromResponse['last_name'] ?? '';
-    UserDetails.hobby = userInfoFromResponse['hobby'] ?? '';
-    UserDetails.music = userInfoFromResponse['music'] ?? '';
-    UserDetails.movie = userInfoFromResponse['movie'] ?? '';
-    UserDetails.city = userInfoFromResponse['city'] ?? '';
-    UserDetails.country_txt = userInfoFromResponse['country'] ?? '';
-    UserDetails.birthday = userInfoFromResponse['birthday'] ?? '';
-    UserDetails.genderTxt = userInfoFromResponse['gender_txt'] ?? userInfoFromResponse['gender'] ?? '';
-    UserDetails.relationship = userInfoFromResponse['relationship_txt'] ?? '';
-    UserDetails.workStatus = userInfoFromResponse['work_status_txt'] ?? '';
-    UserDetails.education = userInfoFromResponse['education_txt'] ?? '';
-    UserDetails.genderTxt = userInfoFromResponse['gender_txt'] ?? userInfoFromResponse['gender'] ?? '';
+    '${userInfo['first_name'] ?? ''} ${userInfo['last_name'] ?? ''}';
+    UserDetails.firstName = userInfo['first_name'] ?? '';
+    UserDetails.lastName = userInfo['last_name'] ?? '';
+    UserDetails.email = userInfo['email'] ?? '';
+    UserDetails.phone = userInfo['phone_number'] ?? '';
+    UserDetails.country_txt = userInfo['country'] ?? '';
+    UserDetails.birthday = userInfo['birthday'] ?? '';
+    UserDetails.gender = userInfo['gender']?.toString() ?? '';
+    UserDetails.genderTxt = userInfo['gender_txt'] ?? userInfo['gender'] ?? '';
+    UserDetails.relationship = userInfo['relationship']?.toString() ?? '';
+    UserDetails.workStatus = userInfo['work_status']?.toString() ?? '';
+    UserDetails.education = userInfo['education']?.toString() ?? '';
+    UserDetails.ethnicity = userInfo['ethnicity']?.toString() ?? '';
+    UserDetails.body = userInfo['body']?.toString() ?? '';
+    UserDetails.children = userInfo['children']?.toString() ?? '';
+    UserDetails.pets = userInfo['pets']?.toString() ?? '';
+    UserDetails.religion = userInfo['religion']?.toString() ?? '';
+    UserDetails.smoke = userInfo['smoke']?.toString() ?? '';
+    UserDetails.drink = userInfo['drink']?.toString() ?? '';
+    UserDetails.travel = userInfo['travel']?.toString() ?? '';
+    UserDetails.lookingFor = userInfo['show_me_to']?.toString() ?? '';
+    UserDetails.about = userInfo['about'] ?? '';
 
-    // ✅ FIX FOR ID FIELDS: Use the ID fields from the response
-    // If the field is null, default to '0' or '', as the ID lookup expects a string ID.
-    UserDetails.relationship = userInfoFromResponse['relationship']?.toString() ?? '';
-    UserDetails.workStatus = userInfoFromResponse['work_status']?.toString() ?? '';
-    UserDetails.education = userInfoFromResponse['education']?.toString() ?? '';
-    UserDetails.ethnicity = userInfoFromResponse['ethnicity']?.toString() ?? '';
-    UserDetails.body = userInfoFromResponse['body']?.toString() ?? '';
-    UserDetails.children = userInfoFromResponse['children']?.toString() ?? '';
-    UserDetails.pets = userInfoFromResponse['pets']?.toString() ?? '';
-    // You need to add all other ID-based fields here (religion, smoke, drink, travel, lookingFor)
-    UserDetails.religion = userInfoFromResponse['religion']?.toString() ?? ''; // 🎯 Add this line!
-    UserDetails.smoke = userInfoFromResponse['smoke']?.toString() ?? '';
-    UserDetails.drink = userInfoFromResponse['drink']?.toString() ?? '';
-    UserDetails.travel = userInfoFromResponse['travel']?.toString() ?? '';
-    UserDetails.lookingFor = userInfoFromResponse['show_me_to']?.toString() ?? '';
-    UserDetails.gender = userInfoFromResponse['gender']?.toString() ?? ''; // This is the numerical ID or text (like 'Female')
-    UserDetails.genderTxt = userInfoFromResponse['gender_txt'] ?? ''; // This is often empty/not used by API
+    // ----------------- Favorites / Interests -----------------
+    UserDetails.hobby = userInfo['hobby'] ?? '';
+    UserDetails.music = userInfo['music'] ?? '';
+    UserDetails.movie = userInfo['movie'] ?? '';
+    UserDetails.dish = userInfo['dish'] ?? '';
+    UserDetails.song = userInfo['song'] ?? '';
 
-    // ✅ FIX: Read About
-    UserDetails.about = userInfoFromResponse['about'] ?? '';
+    // ----------------- Avatars & Covers -----------------
+    UserDetails.avatar = userInfo['avater'] ?? '';
+    UserDetails.cover = userInfo['cover'] ?? '';
 
-    // ✅ FIX: Read Favorites/Interests
-    UserDetails.music = userInfoFromResponse['music'] ?? '';
-    UserDetails.dish = userInfoFromResponse['dish'] ?? '';
-    UserDetails.song = userInfoFromResponse['song'] ?? '';
-    UserDetails.hobby = userInfoFromResponse['hobby'] ?? '';
-    UserDetails.movie = userInfoFromResponse['movie'] ?? '';
+    // ----------------- Social links -----------------
+    UserDetails.facebook = userInfo['facebook'] ?? userData['facebook'] ?? '';
+    UserDetails.google = userInfo['google'] ?? userData['google'] ?? '';
+    UserDetails.twitter = userInfo['twitter'] ?? userData['twitter'] ?? '';
+    UserDetails.linkedin = userInfo['linkedin'] ?? userData['linkedin'] ?? '';
+    UserDetails.instagram = userInfo['instagram'] ?? userData['instagram'] ?? '';
+    UserDetails.discord = userInfo['discord'] ?? userData['discord'] ?? '';
+    UserDetails.okru = userInfo['okru'] ?? userData['okru'] ?? '';
+    UserDetails.mailru = userInfo['mailru'] ?? userData['mailru'] ?? '';
+    UserDetails.wechat = userInfo['wechat'] ?? userData['wechat'] ?? '';
+    UserDetails.qq = userInfo['qq'] ?? userData['qq'] ?? '';
+    UserDetails.website = userInfo['website'] ?? userData['website'] ?? '';
 
-    // ✅ FIX: Read Social Links
-    UserDetails.facebook = userInfoFromResponse['facebook'] ?? '';
-    UserDetails.google = userInfoFromResponse['google'] ?? ''; // It's still empty in the box, but we should map it
-    UserDetails.twitter = userInfoFromResponse['twitter'] ?? '';
-    UserDetails.linkedin = userInfoFromResponse['linkedin'] ?? '';
-    UserDetails.instagram = userInfoFromResponse['instagram'] ?? '';
-    // snapchat/tiktok (mapped to okru/mailru in EditProfileScreen)
-    UserDetails.okru = userInfoFromResponse['okru'] ?? '';
-    UserDetails.mailru = userInfoFromResponse['mailru'] ?? '';
-    UserDetails.website = userInfoFromResponse['website'] ?? '';
-    UserDetails.mediaFiles = (userInfoFromResponse['mediafiles'] as List?)
-
+    // ----------------- Media files -----------------
+    UserDetails.mediaFiles = (userInfo['mediafiles'] as List?)
         ?.map((e) => MediaFile.fromJson(e))
-        .toList() ?? [];
+        .toList() ??
+        [];
 
-    // ✅ Save full userData (including user_info) to Hive
+    // ----------------- Blocked users -----------------
+    try {
+      final blockedResponse = await http.get(
+        Uri.parse(
+            '${SocialLoginService.baseUrl}/users/blocked_users?access_token=${UserDetails.accessToken}&limit=50'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (blockedResponse.statusCode == 200) {
+        final blockedData = jsonDecode(blockedResponse.body);
+        if (blockedData['code'] == 200) {
+          UserDetails.blockedUsers =
+          List<Map<String, dynamic>>.from(blockedData['data']);
+        } else {
+          UserDetails.blockedUsers = [];
+        }
+      } else {
+        UserDetails.blockedUsers = [];
+      }
+    } catch (e) {
+      print('Error fetching blocked users: $e');
+      UserDetails.blockedUsers = [];
+    }
+
+    // ----------------- Save to Hive -----------------
     var box = await Hive.openBox('loginBox');
     await box.put('currentUser', userData);
 
+    // Save access token and user data for transaction API
+    await SocialLoginService.saveAccessToken(UserDetails.accessToken);
+    await SocialLoginService.saveUserData({
+      'id': UserDetails.userId.toString(),
+      'username': UserDetails.username,
+      'email': UserDetails.email,
+      'first_name': UserDetails.firstName,
+      'last_name': UserDetails.lastName,
+      'access_token': UserDetails.accessToken,
+      ...userInfo, // Include all user info
+    });
+
+    // ----------------- Debug logs -----------------
     print('--------------------------');
     print('✅ CURRENT USER LOGGED IN:');
     print('User ID: ${UserDetails.userId}');
     print('Username: ${UserDetails.username}');
-    print('Email: ${UserDetails.email}'); // ✅ Check this now
+    print('Email: ${UserDetails.email}');
     print('Country: ${UserDetails.country_txt}');
     print('Phone: ${UserDetails.phone}');
+    print('Blocked Users: ${UserDetails.blockedUsers.length}');
     print('--------------------------');
 
     if (!mounted) return;
@@ -507,6 +569,7 @@ class _LoginScreenState extends State<LoginScreen> {
       MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
   }
+
 
   void _showDialog(String title, String message) {
     showDialog(

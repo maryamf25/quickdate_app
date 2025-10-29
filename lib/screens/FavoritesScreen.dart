@@ -50,6 +50,41 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
     }
   }
 
+  Future<void> removeFavorite(dynamic userId) async {
+    final int uid = int.tryParse(userId.toString()) ?? 0;
+    if (uid == 0) return;
+
+    final uri = Uri.parse(
+      'https://backend.staralign.me/endpoint/v1/models/users/delete_favorites',
+    );
+
+    try {
+      final response = await http.post(uri, body: {
+        'access_token': widget.accessToken,
+        'uid': uid.toString(),
+      });
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == 200) {
+        setState(() {
+          favorites.removeWhere((fav) => int.tryParse(fav['userData']['id'].toString()) == uid);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Removed from favorites')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['errors']?['error_text'] ?? 'Failed to remove favorite')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,10 +95,10 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
         padding: const EdgeInsets.all(10),
         itemCount: favorites.length + 1,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // 2 columns
+          crossAxisCount: 2,
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
-          childAspectRatio: 0.75, // card shape
+          childAspectRatio: 0.75,
         ),
         itemBuilder: (context, index) {
           if (index == favorites.length) {
@@ -86,6 +121,7 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
               user['full_name'] ?? '${user['first_name']} ${user['last_name']}';
           final online = user['online'] == 1;
           final country = user['country_txt'] ?? '';
+          final userId = user['id'];
 
           return Card(
             elevation: 3,
@@ -97,7 +133,8 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
               children: [
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                    borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(15)),
                     child: avatar.isNotEmpty
                         ? Image.network(
                       avatar,
@@ -128,16 +165,20 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
                   ),
                 ),
                 Padding(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Icon(
                         Icons.circle,
                         size: 12,
                         color: online ? Colors.green : Colors.grey,
-                      )
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.favorite, color: Colors.pink),
+                        onPressed: () => removeFavorite(userId),
+                        tooltip: 'Remove from Favorites',
+                      ),
                     ],
                   ),
                 )

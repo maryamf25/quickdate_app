@@ -2,7 +2,42 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../utils/user_details.dart';
+// Inside api_service.dart, after ApiService class
 
+class InviteService {
+  final ApiService _apiService;
+
+  InviteService(this._apiService);
+
+  // Expose the method from ApiService, or directly include it here
+  Future<List<String>> getInvitationLinks() async {
+    // You can also use the existing implementation from ApiService
+    final url = Uri.parse('${ApiService.baseUrl}/invite/get_invitation_links');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: {'access_token': UserDetails.accessToken},
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['status'] == 200 && data['data'] != null) {
+        // Extract only the codes
+        List<String> codes =
+        List<String>.from(data['data'].map((e) => e['code']));
+        return codes;
+      } else {
+        throw Exception('No invitation codes found.');
+      }
+    } else {
+      throw Exception('Failed to fetch invitation codes.');
+    }
+  }
+}
+
+// NOTE: The getInvitationLinks method in ApiService can now be removed to avoid duplication.
+// If you want to keep it, you should make it static or remove the wrapping InviteService.
+// I recommend removing the duplicate method from ApiService and using the one above.
 class ApiService {
   static const String baseUrl =
       'https://backend.staralign.me/endpoint/v1/models';
@@ -128,6 +163,18 @@ class ApiService {
     };
   }
 
+  static Future<Map<String, dynamic>> deleteLike({required int userId}) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/users/delete_like'),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: {
+        'user_likeid': userId.toString(),
+        'access_token': UserDetails.accessToken,
+      },
+    );
+
+    return jsonDecode(response.body);
+  }
   // Block user - This endpoint doesn't exist yet
   static Future<Map<String, dynamic>> blockUser(
     String userId,

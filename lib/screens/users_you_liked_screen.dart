@@ -20,6 +20,30 @@ class _UsersYouLikedScreenState extends State<UsersYouLikedScreen> {
     // 🎯 KEY CHANGE: Call the new API function
     _likedUsersFuture = ApiService.fetchUsersYouLiked();
   }
+  Future<void> _unlikeUser(User user) async {
+    try {
+      final response = await ApiService.deleteLike(userId: user.id); // 🔹 Use 'id' here
+
+      if (response['code'] == 200) {
+        // Remove the user from the local list
+        setState(() {
+          _likedUsersFuture = _likedUsersFuture.then((list) => list..remove(user));
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User unliked successfully.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response['errors']?['error_text'] ?? 'Failed to unlike user.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,8 +97,13 @@ class _UsersYouLikedScreenState extends State<UsersYouLikedScreen> {
           user.country.isNotEmpty ? user.country : 'Location Hidden',
           style: const TextStyle(color: Colors.grey),
         ),
+        trailing: IconButton(
+          icon: const Icon(Icons.favorite, color: Colors.pink),
+          onPressed: () => _unlikeUser(user),
+          tooltip: 'Unlike',
+        ),
         onTap: () {
-          // TODO: Navigate to this user's full profile
+          // Navigate to this user's profile
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Viewing profile for ${user.fullName}')),
           );
@@ -82,4 +111,5 @@ class _UsersYouLikedScreenState extends State<UsersYouLikedScreen> {
       ),
     );
   }
+
 }

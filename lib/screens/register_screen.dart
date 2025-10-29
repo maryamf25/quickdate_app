@@ -6,7 +6,7 @@ import 'verification_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'social_login_service.dart';
-
+import 'LoginActivity.dart';
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -334,10 +334,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget buildDropdownField(
-    String hint,
-    String? selectedId,
-    List<Map<String, String>> items,
-  ) {
+      String hint,
+      String? selectedId,
+      List<Map<String, String>> items,
+      ) {
     return Container(
       height: 50,
       decoration: BoxDecoration(
@@ -357,8 +357,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               color: const Color(0xFFFAF3F3),
               shape: BoxShape.circle,
             ),
+            // 👇 Changed this icon to show two people instead of one
             child: const Icon(
-              Icons.person_outline,
+              Icons.people_alt_outlined,
               color: Color(0xFFFF0881),
               size: 20,
             ),
@@ -366,15 +367,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Expanded(
             child: DropdownButtonFormField<String>(
               value: selectedId,
-              items:
-                  items
-                      .map(
-                        (g) => DropdownMenuItem(
-                          value: g['id'],
-                          child: Text(g['name']!),
-                        ),
-                      )
-                      .toList(),
+              items: items
+                  .map(
+                    (g) => DropdownMenuItem(
+                  value: g['id'],
+                  child: Text(g['name']!),
+                ),
+              )
+                  .toList(),
               onChanged: (val) => setState(() => selectedGenderId = val),
               decoration: InputDecoration(
                 hintText: hint,
@@ -390,6 +390,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
+
 
   Widget buildBirthdayField(
     TextEditingController controller,
@@ -445,29 +446,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Row(
           children: [
-            Expanded(child: Divider(color: Colors.grey.shade400, thickness: 1)),
+            Expanded(child: Divider(color: Colors.grey.shade400)),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
               child: Text(
-                "Continue",
+                "continue with",
                 style: TextStyle(
                   color: Colors.black54,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            Expanded(child: Divider(color: Colors.grey.shade400, thickness: 1)),
+            Expanded(child: Divider(color: Colors.grey.shade400)),
           ],
         ),
         const SizedBox(height: 16),
-
         Wrap(
           spacing: 12,
           runSpacing: 12,
           alignment: WrapAlignment.center,
-          children: [_buildFacebookButton(), _buildGoogleButton()],
+          children: [
+            _buildGoogleButton(),
+            _buildFacebookButton(),
+            _buildWoWonderButton(),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    return SizedBox(
+      height: 50,
+      child: ElevatedButton(
+        onPressed: _signWithGoogle,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black87,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30), // pill shape
+            side: const BorderSide(color: Colors.grey, width: 0.6),
+          ),
+          elevation: 2,
+          shadowColor: Colors.black12,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              "assets/images/Google_logo.png", // use the colorful G logo
+              width: 24,
+              height: 24,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              "Google",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -478,10 +522,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: GestureDetector(
         onTap: _signWithFacebook,
         child: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
                 color: Colors.black12,
                 blurRadius: 4,
@@ -489,55 +533,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ],
           ),
-          child: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 28),
+          child: const Icon(
+            Icons.facebook,
+            color: Color(0xFF1877F2),
+            size: 32,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildGoogleButton() {
+  Widget _buildWoWonderButton() {
     return SizedBox(
       height: 50,
-      child: GestureDetector(
-        onTap: _signWithGoogle,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          constraints: const BoxConstraints(maxWidth: 200),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.network(
-                'https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png',
-                // ✅ valid PNG
-                width: 24,
-                height: 24,
-              ),
-              const SizedBox(width: 8),
-              const Flexible(
-                child: Text(
-                  "Google",
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 16, color: Colors.black87),
-                ),
-              ),
-            ],
-          ),
+      width: 50,
+      child: ElevatedButton(
+        onPressed: () {
+          // TODO: handle WoWonder login here
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFFFFFF),
+          foregroundColor: Colors.white,
+          shape: const CircleBorder(),
+          padding: EdgeInsets.zero,
+          elevation: 2,
+          shadowColor: Colors.black12,
+        ),
+        child: Image.asset(
+          "assets/images/wowonder.png",
+          width: 28,
+          height: 28,
+          fit: BoxFit.contain,
         ),
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -656,6 +686,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 15),
             _buildSocialLoginSection(),
             const SizedBox(height: 20),
+            const SizedBox(height: 20),
+
+// Terms of Service
+            RichText(
+              textAlign: TextAlign.center,
+              text: const TextSpan(
+                text: "By registering you agree to our ",
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 14,
+                ),
+                children: [
+                  TextSpan(
+                    text: "Terms of Service",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+// Already have an account? Login now
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "Already have an account? ",
+                  style: TextStyle(color: Colors.black54, fontSize: 14),
+                ),
+                GestureDetector(
+                  onTap:
+                      () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginScreen(),
+                    ),
+                  ),
+                  child: const Text(
+                    "Login now",
+                    style: TextStyle(
+                      color: Color(0xFFFF0881), // same as your app icon color
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
           ],
         ),
       ),

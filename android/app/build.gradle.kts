@@ -6,11 +6,11 @@ plugins {
 
 android {
     namespace = "com.example.quickdate_app_new"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.quickdate_app_new"
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

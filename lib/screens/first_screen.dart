@@ -71,13 +71,13 @@ class FirstScreen extends StatelessWidget {
                     children: [
                       const SizedBox(height: 25),
                       const Text(
-                        'Welcome Header',
+                        'Discover Your Dream Partner',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
                       const Text(
-                        'Sub-header text here',
+                        'Swipe right to like someone and if you both like each others? its a match',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 16),
                       ),
@@ -170,7 +170,7 @@ class FirstScreen extends StatelessWidget {
 
                       const SizedBox(height: 16),
                       const Text(
-                        'Footer text here',
+                        'Flirt, Chat, and Meet people around you!',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 14),
                       ),

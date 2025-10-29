@@ -7,6 +7,7 @@ import 'friends_screen.dart';
 import 'FavoritesScreen.dart';
 import 'blogs_screen.dart';
 import 'InviteFriendsScreen.dart';
+import 'home_screen.dart';
 class MainProfileScreen extends StatelessWidget {
   const MainProfileScreen({super.key});
 
@@ -155,11 +156,16 @@ class MainProfileScreen extends StatelessWidget {
             ),
             _buildProfileActionButton(
               context,
-              Icons.history,
-              'Match History',
+              Icons.settings,
+              'Settings',
               Colors.green,
-              routeName: '/matchHistory', // keep for now
-            ),
+              onPressedOverride: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsTab()),
+                );
+              },
+                ),
           ],
         ),
       ),
