@@ -1,15 +1,41 @@
+// main_profile_screen.dart (only relevant changes for context)
 import 'package:flutter/material.dart';
 import '../utils/user_details.dart';
 import 'profile_screen.dart';
-import 'users_you_liked_screen.dart'; // New import
+import 'users_you_liked_screen.dart';
 import 'users_you_disliked_screen.dart';
 import 'friends_screen.dart';
 import 'FavoritesScreen.dart';
 import 'blogs_screen.dart';
 import 'InviteFriendsScreen.dart';
 import 'home_screen.dart';
-class MainProfileScreen extends StatelessWidget {
+import 'upgrade_to_premium_screen.dart';
+import '../services/razorpay_payment_service.dart';
+import 'buy_credits.dart';
+
+class MainProfileScreen extends StatefulWidget {
   const MainProfileScreen({super.key});
+
+  @override
+  State<MainProfileScreen> createState() => _MainProfileScreenState();
+}
+
+class _MainProfileScreenState extends State<MainProfileScreen> {
+  late final RazorpayPaymentService _razorpayService;
+
+  @override
+  void initState() {
+    super.initState();
+    print('MainProfileScreen: Initializing RazorpayPaymentService.');
+    _razorpayService = RazorpayPaymentService();
+  }
+
+  @override
+  void dispose() {
+    print('MainProfileScreen: Disposing RazorpayPaymentService.');
+    _razorpayService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,38 +46,59 @@ class MainProfileScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.monetization_on, color: Colors.yellow),
+          onPressed: () {
+            print('MainProfileScreen: Navigating to Credits Page.');
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CreditsApp(),
+              ),
+            );
+          },
+        ),
         title: const Text('My Profile'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.diamond, color: Colors.blue),
+            onPressed: () {
+              print('MainProfileScreen: Navigating to PremiumUpgradePage.');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PremiumUpgradePage(
+                    razorpayService: _razorpayService,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Profile photo
             CircleAvatar(
               radius: 60,
               backgroundImage: profilePic.isNotEmpty
                   ? NetworkImage(profilePic)
-                  : const AssetImage('assets/images/default_avatar.png')
-              as ImageProvider,
+                  : const AssetImage('assets/images/default_avatar.png') as ImageProvider,
             ),
             const SizedBox(height: 16),
-
-            // Name
             Text(
               name.isNotEmpty ? name : 'Your Name',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 6),
             Text(
               [city, country].where((e) => e.isNotEmpty).join(', '),
               style: const TextStyle(color: Colors.grey, fontSize: 14),
             ),
-
             const SizedBox(height: 20),
-
-            // Edit Profile Button
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
@@ -68,11 +115,8 @@ class MainProfileScreen extends StatelessWidget {
               icon: const Icon(Icons.edit),
               label: const Text('Edit Profile'),
             ),
-
             const SizedBox(height: 30),
             const Divider(thickness: 1),
-
-            // Action Buttons
             const SizedBox(height: 10),
             _buildProfileActionButton(
               context,
@@ -90,20 +134,19 @@ class MainProfileScreen extends StatelessWidget {
               context,
               Icons.people,
               'Friends',
-              Colors.green,onPressedOverride: () {
+              Colors.green,
+              onPressedOverride: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const FriendsScreen()),
-                );},
-
+                );
+              },
             ),
-
             _buildProfileActionButton(
               context,
               Icons.thumb_down_alt_rounded,
               'Disliked Users',
               Colors.blueGrey,
-              // Replace route with MaterialPageRoute
               onPressedOverride: () {
                 Navigator.push(
                   context,
@@ -127,7 +170,6 @@ class MainProfileScreen extends StatelessWidget {
                 );
               },
             ),
-
             _buildProfileActionButton(
               context,
               Icons.article,
@@ -142,17 +184,19 @@ class MainProfileScreen extends StatelessWidget {
                 );
               },
             ),
-
             _buildProfileActionButton(
               context,
               Icons.star,
               'Favorites',
               Colors.orange,
-    onPressedOverride: () {
-    Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => FavoritesGridScreen(accessToken: UserDetails.accessToken,)),
-    );},
+              onPressedOverride: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FavoritesGridScreen(accessToken: UserDetails.accessToken),
+                  ),
+                );
+              },
             ),
             _buildProfileActionButton(
               context,
@@ -165,14 +209,13 @@ class MainProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const SettingsTab()),
                 );
               },
-                ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // Updated to support optional override
   Widget _buildProfileActionButton(
       BuildContext context,
       IconData icon,
@@ -193,12 +236,9 @@ class MainProfileScreen extends StatelessWidget {
           ),
           side: BorderSide(color: color.withOpacity(0.4)),
         ),
-        onPressed: onPressedOverride ??
-                () {
-              if (routeName != null) {
-                Navigator.pushNamed(context, routeName);
-              }
-            },
+        onPressed: onPressedOverride ?? () {
+          if (routeName != null) Navigator.pushNamed(context, routeName);
+        },
         icon: Icon(icon),
         label: Text(title, style: const TextStyle(fontSize: 16)),
       ),
