@@ -10,33 +10,32 @@
 <<<<<<< HEAD
 
   <!-- Facebook SDK for JavaScript -->
-  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0&appId=1283939128813964"></script>
   <script>
+    // Global Facebook SDK state
+    window.FB_SDK_READY = false;
+
     window.fbAsyncInit = function() {
-      FB.init({
-        appId      : '1283939128813964', // Replace with your valid App ID
-        cookie     : true,
-        xfbml      : true,
-        version    : 'v18.0',
-        status     : true // Check login status
-      });
+      try {
+        FB.init({
+          appId      : '1283939128813964',
+          cookie     : true,
+          xfbml      : true,
+          version    : 'v18.0',
+          status     : true
+        });
 
-      // Check if FB SDK loaded properly
-      console.log('✅ Facebook SDK initialized successfully');
-      console.log('📱 App ID:', '1283939128813964');
+        window.FB_SDK_READY = true;
+        console.log('✅ Facebook SDK initialized');
 
-      // Test FB API availability
-      FB.getLoginStatus(function(response) {
-        console.log('🔍 FB Login Status Check:', response.status);
-      });
-    };
-
-    // Handle FB SDK load errors
-    window.addEventListener('error', function(e) {
-      if (e.filename && e.filename.includes('facebook')) {
-        console.error('❌ Facebook SDK failed to load:', e.message);
+        // Notify Flutter when ready
+        if (window.Dartify && window.Dartify.fbReady) {
+          window.Dartify.fbReady();
+        }
+      } catch (error) {
+        console.error('❌ Facebook SDK init error:', error);
       }
-    });
+    };
   </script>
 
 
