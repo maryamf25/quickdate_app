@@ -25,6 +25,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'delete_account_screen.dart';
 import 'mainprofile.dart';
 import 'package:quickdate_app/utils/lang_controller.dart';
+import '../services/session_manager.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -518,8 +520,12 @@ class _SettingsTabState extends State<SettingsTab> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context); // Close dialog
-              await _performLogout();
+              await SessionManager.logout(context, onDone: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                );
+              });
             },
             child: const Text("Logout"),
           ),

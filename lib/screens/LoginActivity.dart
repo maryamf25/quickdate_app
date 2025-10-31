@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:hive/hive.dart';
 import '../utils/user_details.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'social_login_service.dart';
+import '../services/session_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -514,10 +514,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // ----------------- Blocked users -----------------
     try {
-      final blockedResponse = await http.get(
+      // final blockedResponse = await http.get(
+      //   Uri.parse(
+      //       '${SocialLoginService.baseUrl}/users/blocked_users?access_token=${UserDetails.accessToken}&limit=50'),
+      //   headers: {'Accept': 'application/json'},
+      // );
+      final blockedResponse = await SessionManager.get(
         Uri.parse(
             '${SocialLoginService.baseUrl}/users/blocked_users?access_token=${UserDetails.accessToken}&limit=50'),
-        headers: {'Accept': 'application/json'},
       );
 
       if (blockedResponse.statusCode == 200) {
@@ -536,9 +540,6 @@ class _LoginScreenState extends State<LoginScreen> {
       UserDetails.blockedUsers = [];
     }
 
-    // ----------------- Save to Hive -----------------
-    var box = await Hive.openBox('loginBox');
-    await box.put('currentUser', userData);
 
     // Save access token and user data for transaction API
     await SocialLoginService.saveAccessToken(UserDetails.accessToken);
@@ -551,7 +552,7 @@ class _LoginScreenState extends State<LoginScreen> {
       'access_token': UserDetails.accessToken,
       ...userInfo, // Include all user info
     });
-
+    await SessionManager.setSession(userData: userData);
     // ----------------- Debug logs -----------------
     print('--------------------------');
     print('✅ CURRENT USER LOGGED IN:');
