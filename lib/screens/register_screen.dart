@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 import '../utils/user_details.dart';
 import 'home_screen.dart';
 import 'verification_screen.dart';
+import 'email_verification_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'social_login_service.dart';
@@ -114,9 +115,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       var data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
-        if (data['success_type'] == 'registered') {
+
+        if (data['success_type'] == 'confirm_account') {
           var box = Hive.box('loginBox');
           await box.put('currentUser', data['data']);
 
@@ -125,24 +126,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
           UserDetails.username = username;
           UserDetails.fullName = fullName;
           UserDetails.email = email;
+          UserDetails.emailCode = data['data']['user_info']['email_code'].toString();
 
+          // Backend may indicate verification status in the returned user data.
+          // The API returns 'verified' as '1' or '0' (see UserModel). If not verified,
+          // navigate to the email verification screen instead of Home.
+          final verifiedField = data['data']['verified'];
+          final bool isVerified =
+              (verifiedField == null) ? false : (verifiedField.toString() == '1');
+          print("Verified: $isVerified");
           if (!mounted) return;
+
+          if (!isVerified) {
+            // Send user to email verification flow
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EmailVerificationScreen(email: email),
+              ),
+            );
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          }
+        }
+        else if (data['success_type'] == 'registered') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const HomeScreen()),
           );
-        } else if (data['success_type'] == 'confirm_account') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (_) => VerificationScreen(
-                    email: email,
-                    userId: data['data']['user_id'],
-                  ),
-            ),
-          );
-        } else {
+        }
+        else {
           showError(data['message'] ?? "Unknown error occurred");
         }
       } else {
@@ -361,26 +377,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           Expanded(
             child: DropdownButtonFormField<String>(
+              isExpanded: true,
               value: selectedId,
-              items: items
-                  .map(
+              items: items.map(
                     (g) => DropdownMenuItem(
                   value: g['id'],
-                  child: Text(g['name']!),
+                  child: Text(
+                    g['name']!,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              )
-                  .toList(),
+              ).toList(),
               onChanged: (val) => setState(() => selectedGenderId = val),
-              decoration: InputDecoration(
-                hintText: hint,
+              decoration: const InputDecoration(
+                hintText: "Gender",
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 8,
-                ),
+                contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 8),
               ),
             ),
           ),
+
         ],
       ),
     );
