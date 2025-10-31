@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../utils/user_details.dart';
@@ -151,7 +152,7 @@ class _MyAccountScreenState extends State<MyAccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("My Account")),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_my_account)),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -208,7 +209,7 @@ class _MyAccountScreenState extends State<MyAccountScreen> {
               child:
                   isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Update Profile"),
+                      : Text(AppLocalizations.of(context)!.update_profile),
             ),
           ],
         ),

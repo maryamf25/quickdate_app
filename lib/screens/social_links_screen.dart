@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../utils/user_details.dart';
@@ -175,7 +176,7 @@ class _SocialLinksScreenState extends State<SocialLinksScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Social Links")),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_social_links)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -207,7 +208,7 @@ class _SocialLinksScreenState extends State<SocialLinksScreen> {
                       ? const CircularProgressIndicator(
                     color: Colors.white,
                   )
-                      : const Text("Save"),
+                      : Text(AppLocalizations.of(context)!.common_save),
                 ),
               ),
             ],

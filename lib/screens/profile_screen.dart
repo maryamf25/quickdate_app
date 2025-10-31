@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -264,14 +265,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Choose File Type'),
+        title: Text(AppLocalizations.of(context)!.choose_file_type),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(title: const Text('Image Gallery'), onTap: () => Navigator.pop(context, 'ImageGallery')),
-            ListTile(title: const Text('Camera'), onTap: () => Navigator.pop(context, 'Camera')),
-            ListTile(title: const Text('Video Gallery'), onTap: () => Navigator.pop(context, 'VideoGallery')),
-            ListTile(title: const Text('Video Camera'), onTap: () => Navigator.pop(context, 'VideoCamera')),
+            ListTile(title: Text(AppLocalizations.of(context)!.image_gallery), onTap: () => Navigator.pop(context, 'ImageGallery')),
+            ListTile(title: Text(AppLocalizations.of(context)!.camera), onTap: () => Navigator.pop(context, 'Camera')),
+            ListTile(title: Text(AppLocalizations.of(context)!.video_gallery), onTap: () => Navigator.pop(context, 'VideoGallery')),
+            ListTile(title: Text(AppLocalizations.of(context)!.video_camera), onTap: () => Navigator.pop(context, 'VideoCamera')),
           ],
         ),
       ),
@@ -462,7 +463,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (dataUser == null) return const Center(child: CircularProgressIndicator());
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_edit_profile)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -483,7 +484,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 Expanded(
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Birthday'),
+                    title: Text(AppLocalizations.of(context)!.birthday),
                     subtitle: Text(selectedBirthday != null
                         ? "${selectedBirthday!.day}/${selectedBirthday!.month}/${selectedBirthday!.year}"
                         : 'Select birthday'),
@@ -631,9 +632,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _updateProfile,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text('Save Profile', style: TextStyle(fontSize: 16)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(AppLocalizations.of(context)!.save_profile, style: const TextStyle(fontSize: 16)),
                 ),
               ),
             ),
@@ -677,7 +678,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             isExpanded: true,
             items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
             onChanged: onChanged,
-            hint: Text('Select $label'),
+            hint: Text(AppLocalizations.of(context)!.select_label(label)),
           ),
         ),
       ),

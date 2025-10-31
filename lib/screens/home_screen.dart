@@ -1,15 +1,19 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+import '../l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:quickdate_app/utils/lang_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive/hive.dart';
+
 import '../utils/user_details.dart';
 import 'my_account_screen.dart';
 import 'card_match_screen.dart';
 import 'trending_screen.dart';
 import 'notifications_screen.dart';
 import 'chats_screen.dart';
-import 'main_settings.dart';
+import 'main_settings.dart' hide AppLanguage;
 import 'social_links_screen.dart';
 import 'blocked_user_screen.dart';
 import 'affiliate_screen.dart';
@@ -24,7 +28,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'delete_account_screen.dart';
 import 'mainprofile.dart';
-import 'package:quickdate_app/utils/lang_controller.dart';
+
+import 'package:quickdate_app/utils/lang_controller.dart' hide AppLanguage;
 import '../services/session_manager.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -47,12 +52,14 @@ class _HomeScreenState extends State<HomeScreen> {
       const TrendingScreen(),       // Index 1: Trending
       const NotificationsScreen(),  // Index 2: Alerts
       const ChatsScreen(),          // Index 3: Chats
-      const MainProfileScreen(),              // Index 4: Settings
+      const MainProfileScreen(),    // Index 4: Settings
     ];
+
     LanguageChangeNotifier.instance.addListener(_onLanguageChanged);
 
     _initializeSettings();
   }
+
   @override
   void dispose() {
     LanguageChangeNotifier.instance.removeListener(_onLanguageChanged);
@@ -63,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onLanguageChanged() {
     setState(() {}); // This forces the build method to re-run
   }
+
   Future<void> _initializeSettings() async {
     await MainSettings.init();
     _applyTheme();
@@ -109,22 +117,20 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: const Color(0xFFBF01FD),
         unselectedItemColor: Colors.grey,
         onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Match'),
-          BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'Trending'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alerts'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chats'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+        items: [
+          BottomNavigationBarItem(icon: const Icon(Icons.favorite), label: AppLocalizations.of(context)!.tab_match),
+          BottomNavigationBarItem(icon: const Icon(Icons.trending_up), label: AppLocalizations.of(context)!.tab_trending),
+          BottomNavigationBarItem(icon: const Icon(Icons.notifications), label: AppLocalizations.of(context)!.tab_alerts),
+          BottomNavigationBarItem(icon: const Icon(Icons.chat), label: AppLocalizations.of(context)!.tab_chats),
+          BottomNavigationBarItem(icon: const Icon(Icons.settings), label: AppLocalizations.of(context)!.tab_settings),
         ],
       ),
     );
   }
 }
 
-
-//
 // ================= SETTINGS TAB =================
-//
+
 class SettingsTab extends StatefulWidget {
   const SettingsTab({super.key});
 
@@ -151,33 +157,31 @@ class _SettingsTabState extends State<SettingsTab> {
     _initLanguage();
     _loadToggleStates();
   }
-// Inside _SettingsTabState
-// ...
-// Save new language choice
+
+  // Save new language choice
   Future<void> _onLanguageChanged(String? value) async {
     if (value == null) return;
 
-    // Determine the AppLanguage enum value
     final AppLanguage newLang = value == 'ar' ? AppLanguage.arabic : AppLanguage.english;
 
-    // 1. Update the local state for the radio buttons
     setState(() => _currentLanguage = value);
 
-    // 2. 🔑 KEY CHANGE: Call the notifier to update the global app locale
     await LanguageChangeNotifier.instance.changeLanguage(newLang);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          "Language changed to ${value == 'en' ? 'English' : 'Arabic'} ✅",
+    if (mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      final langName = value == 'en' ? l10n.english : l10n.arabic;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.language_changed(langName),
+          ),
+          backgroundColor: Colors.green,
         ),
-        backgroundColor: Colors.green,
-      ),
-    );
+      );
+    }
   }
 
-// ⚠️ REMINDER: You also need to ensure the main function calls
-// LanguageChangeNotifier.instance.loadInitialLanguage() before runApp().
   /// Load saved toggle states
   Future<void> _loadToggleStates() async {
     final prefs = await SharedPreferences.getInstance();
@@ -196,17 +200,16 @@ class _SettingsTabState extends State<SettingsTab> {
     await prefs.setBool(key, value);
   }
 
-  /// ✅ Load saved or system language safely
+  /// ✅ Load selected language from the language controller
   Future<void> _initLanguage() async {
     try {
-      final lang = MainSettings.getLanguage();
-      setState(() => _currentLanguage = lang == AppLanguage.arabic ? 'ar' : 'en');
+      final code = LanguageChangeNotifier.instance.appLocale.languageCode;
+      setState(() => _currentLanguage = (code == 'ar') ? 'ar' : 'en');
     } catch (e) {
       debugPrint("Error initializing language: $e");
       setState(() => _currentLanguage = 'en');
     }
   }
-
 
   Future<void> _updateOnlineStatus(BuildContext context, bool isOnline) async {
     final token = UserDetails.accessToken;
@@ -249,8 +252,8 @@ class _SettingsTabState extends State<SettingsTab> {
     } catch (e) {
       debugPrint("❌ Error updating online status: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to update online status. Please try again."),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.failed_update_online_status),
           backgroundColor: Colors.red,
         ),
       );
@@ -322,8 +325,8 @@ class _SettingsTabState extends State<SettingsTab> {
     } catch (e) {
       debugPrint("❌ Error updating profile visibility: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to update profile visibility. Please try again."),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.failed_update_profile_visibility),
           backgroundColor: Colors.red,
         ),
       );
@@ -374,8 +377,8 @@ class _SettingsTabState extends State<SettingsTab> {
     } catch (e) {
       debugPrint("❌ Error updating match visibility: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to update match visibility. Please try again."),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.failed_update_match_visibility),
           backgroundColor: Colors.red,
         ),
       );
@@ -406,31 +409,29 @@ class _SettingsTabState extends State<SettingsTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Help & Support"),
-        content: const SingleChildScrollView(
+        title: Text(AppLocalizations.of(context)!.help_support),
+        content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "Need help?",
+                AppLocalizations.of(context)!.need_help,
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               SizedBox(height: 10),
-              Text("📧 Email: support@staralign.me"),
+              Text(AppLocalizations.of(context)!.contact_email),
               SizedBox(height: 5),
-              Text("🌐 Website: www.staralign.me/help"),
+              Text(AppLocalizations.of(context)!.contact_website),
               SizedBox(height: 10),
-              Text(
-                "You can also check our FAQ section or contact us through the app.",
-              ),
+              Text(AppLocalizations.of(context)!.check_faq),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
+            child: Text(AppLocalizations.of(context)!.close),
           ),
         ],
       ),
@@ -441,17 +442,16 @@ class _SettingsTabState extends State<SettingsTab> {
   void _showAbout() {
     showAboutDialog(
       context: context,
-      applicationName: "QuickDate",
+      applicationName: AppLocalizations.of(context)!.appName,
       applicationVersion: "1.0.0",
       applicationIcon: const Icon(Icons.favorite, color: Color(0xFFBF01FD), size: 48),
-      children: const [
-        Text("QuickDate - Find your perfect match!"),
-        SizedBox(height: 10),
-        Text("© 2025 StarAlign. All rights reserved."),
+      children: [
+        Text(AppLocalizations.of(context)!.about_tagline),
+        const SizedBox(height: 10),
+        Text(AppLocalizations.of(context)!.copyright),
       ],
     );
   }
-
 
   Future<void> _performDeleteAccount() async {
     try {
@@ -475,8 +475,8 @@ class _SettingsTabState extends State<SettingsTab> {
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Account deleted successfully"),
+              SnackBar(
+                content: Text(AppLocalizations.of(context)!.account_deleted_success),
                 backgroundColor: Colors.green,
               ),
             );
@@ -497,8 +497,8 @@ class _SettingsTabState extends State<SettingsTab> {
       debugPrint("❌ Error deleting account: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Failed to delete account. Please try again."),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.failed_delete_account),
             backgroundColor: Colors.red,
           ),
         );
@@ -511,12 +511,12 @@ class _SettingsTabState extends State<SettingsTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Logout"),
-        content: const Text("Are you sure you want to logout?"),
+        title: Text(AppLocalizations.of(context)!.logout),
+        content: Text(AppLocalizations.of(context)!.logout_confirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () async {
@@ -527,12 +527,13 @@ class _SettingsTabState extends State<SettingsTab> {
                 );
               });
             },
-            child: const Text("Logout"),
+            child: Text(AppLocalizations.of(context)!.logout),
           ),
         ],
       ),
     );
   }
+
   // ────────────────────────────────────────
   // CLEAR CACHE LOGIC
   // ────────────────────────────────────────
@@ -540,21 +541,17 @@ class _SettingsTabState extends State<SettingsTab> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Clear Cache?"),
-        content: const Text(
-          "This will permanently delete all cached data, "
-              "including uploaded files, images and temporary media. "
-              "Are you sure?",
-        ),
+        title: Text(AppLocalizations.of(context)!.clear_cache_title),
+        content: Text(AppLocalizations.of(context)!.clear_cache_body),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancel"),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Delete"),
+            child: Text(AppLocalizations.of(context)!.delete),
           ),
         ],
       ),
@@ -591,8 +588,8 @@ class _SettingsTabState extends State<SettingsTab> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Cache cleared successfully"),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.cache_cleared_success),
           backgroundColor: Colors.green,
         ),
       );
@@ -602,12 +599,13 @@ class _SettingsTabState extends State<SettingsTab> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Cache cleared (simulated on web)"),
+          content: Text(AppLocalizations.of(context)!.cache_cleared_simulated),
           backgroundColor: Colors.orange,
         ),
       );
     }
   }
+
   Future<void> _performLogout() async {
     try {
       // Clear all user data
@@ -619,8 +617,8 @@ class _SettingsTabState extends State<SettingsTab> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Logged out successfully"),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.logged_out_success),
             backgroundColor: Colors.green,
           ),
         );
@@ -635,8 +633,8 @@ class _SettingsTabState extends State<SettingsTab> {
       debugPrint("❌ Error during logout: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Failed to logout. Please try again."),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.failed_logout),
             backgroundColor: Colors.red,
           ),
         );
@@ -647,7 +645,7 @@ class _SettingsTabState extends State<SettingsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Settings")),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.settings_title)),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -655,40 +653,40 @@ class _SettingsTabState extends State<SettingsTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Divider(height: 32),
-              const Text("General",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(AppLocalizations.of(context)!.general,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ListTile(
-                title: const Text("My Account"),
-                subtitle: const Text("Manage your profile and settings"),
+                title: Text(AppLocalizations.of(context)!.my_account),
+                subtitle: Text(AppLocalizations.of(context)!.my_account_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const MyAccountScreen()),
               ),
               ListTile(
-                title: const Text("Social Links"),
-                subtitle: const Text("Connect your social media accounts"),
+                title: Text(AppLocalizations.of(context)!.social_links),
+                subtitle: Text(AppLocalizations.of(context)!.social_links_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const SocialLinksScreen()),
               ),
               ListTile(
-                title: const Text("Blocked Users"),
-                subtitle: const Text("Manage blocked users"),
+                title: Text(AppLocalizations.of(context)!.blocked_users),
+                subtitle: Text(AppLocalizations.of(context)!.blocked_users_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const BlockedUsersScreen()),
               ),
               ListTile(
-                title: const Text("My Affiliates"),
-                subtitle: const Text("Earn rewards for referrals"),
+                title: Text(AppLocalizations.of(context)!.my_affiliates),
+                subtitle: Text(AppLocalizations.of(context)!.my_affiliates_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const MyAffiliatesScreen()),
               ),
 
               const Divider(height: 32),
-              const Text(
-                "Messenger",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppLocalizations.of(context)!.messenger,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SwitchListTile(
-                title: const Text("Show when you're active"),
+                title: Text(AppLocalizations.of(context)!.show_active),
                 value: _showActiveStatus,
                 onChanged: (bool value) async {
                   setState(() {
@@ -701,13 +699,13 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
 
               const Divider(height: 32),
-              const Text(
-                "Privacy",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppLocalizations.of(context)!.privacy,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
 
               SwitchListTile(
-                title: const Text("Show my profile on search engines?"),
+                title: Text(AppLocalizations.of(context)!.show_profile_search),
                 value: _showProfileOnSearch,
                 onChanged: (bool value) {
                   setState(() {
@@ -720,7 +718,7 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
 
               SwitchListTile(
-                title: const Text("Show my profile in random users?"),
+                title: Text(AppLocalizations.of(context)!.show_profile_random),
                 value: _showProfileInRandomUsers,
                 onChanged: (bool value) {
                   setState(() {
@@ -733,7 +731,7 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
 
               SwitchListTile(
-                title: const Text("Show my profile in find match page?"),
+                title: Text(AppLocalizations.of(context)!.show_profile_match),
                 value: _showProfileInFindMatch,
                 onChanged: (bool value) {
                   setState(() {
@@ -746,9 +744,7 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
 
               SwitchListTile(
-                title: const Text(
-                  "Confirm request when someone requests to be a friend with you?",
-                ),
+                title: Text(AppLocalizations.of(context)!.confirm_friend),
                 value: _confirmFriendRequest,
                 onChanged: (bool value) {
                   setState(() {
@@ -761,11 +757,11 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
 
               const Divider(height: 32),
-              const Text("Security",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(AppLocalizations.of(context)!.security,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ListTile(
-                title: const Text("Password"),
-                subtitle: const Text("Change your account password"),
+                title: Text(AppLocalizations.of(context)!.password),
+                subtitle: Text(AppLocalizations.of(context)!.password_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () {
                   Navigator.push(
@@ -775,47 +771,47 @@ class _SettingsTabState extends State<SettingsTab> {
                 },
               ),
               ListTile(
-                title: const Text("Two-Factor Authentication"),
+                title: Text(AppLocalizations.of(context)!.two_factor),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const TwoFactorAuthScreen()),
               ),
               ListTile(
-                title: const Text("Manage Sessions"),
+                title: Text(AppLocalizations.of(context)!.manage_sessions),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const ManageSessionsScreen()),
               ),
 
               const Divider(height: 32),
-              const Text("Payments",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(AppLocalizations.of(context)!.payments,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ListTile(
-                title: const Text("Withdrawals"),
+                title: Text(AppLocalizations.of(context)!.withdrawals),
                 subtitle:
-                const Text("Withdraw your earnings via PayPal or Bank"),
+                Text(AppLocalizations.of(context)!.withdrawals_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const PaymentScreen()),
               ),
               ListTile(
-                title: const Text("Transactions"),
-                subtitle: const Text("View all your transactions"),
+                title: Text(AppLocalizations.of(context)!.transactions),
+                subtitle: Text(AppLocalizations.of(context)!.transactions_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const TransactionsScreen()),
               ),
 
               const Divider(height: 32),
-              const Text("Display",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(AppLocalizations.of(context)!.display,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
 
               // --- THEME SELECTION ---
               ListTile(
-                title: const Text("Theme"),
+                title: Text(AppLocalizations.of(context)!.theme),
                 subtitle: Text(
                   _currentTheme == TabTheme.light
-                      ? "Light"
+                      ? AppLocalizations.of(context)!.theme_light
                       : _currentTheme == TabTheme.dark
-                      ? "Dark"
-                      : "System Default",
+                      ? AppLocalizations.of(context)!.theme_dark
+                      : AppLocalizations.of(context)!.theme_system,
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
@@ -823,12 +819,12 @@ class _SettingsTabState extends State<SettingsTab> {
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        title: const Text("Select Theme"),
+                        title: Text(AppLocalizations.of(context)!.theme_select),
                         content: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             RadioListTile<TabTheme>(
-                              title: const Text("System Default"),
+                              title: Text(AppLocalizations.of(context)!.theme_system),
                               value: TabTheme.system,
                               groupValue: _currentTheme,
                               onChanged: (value) {
@@ -837,7 +833,7 @@ class _SettingsTabState extends State<SettingsTab> {
                               },
                             ),
                             RadioListTile<TabTheme>(
-                              title: const Text("Light"),
+                              title: Text(AppLocalizations.of(context)!.theme_light),
                               value: TabTheme.light,
                               groupValue: _currentTheme,
                               onChanged: (value) {
@@ -846,7 +842,7 @@ class _SettingsTabState extends State<SettingsTab> {
                               },
                             ),
                             RadioListTile<TabTheme>(
-                              title: const Text("Dark"),
+                              title: Text(AppLocalizations.of(context)!.theme_dark),
                               value: TabTheme.dark,
                               groupValue: _currentTheme,
                               onChanged: (value) {
@@ -861,14 +857,15 @@ class _SettingsTabState extends State<SettingsTab> {
                   );
                 },
               ),
+
               // --- LANGUAGE SELECTION ---
               ListTile(
-                title: const Text(
-                  "Language",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                title: Text(
+                  AppLocalizations.of(context)!.language,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
-                  _currentLanguage == 'en' ? "English" : "Arabic",
+                  _currentLanguage == 'en' ? AppLocalizations.of(context)!.english : AppLocalizations.of(context)!.arabic,
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
@@ -876,12 +873,12 @@ class _SettingsTabState extends State<SettingsTab> {
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        title: const Text("Select Language"),
+                        title: Text(AppLocalizations.of(context)!.language),
                         content: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             RadioListTile<String>(
-                              title: const Text("English"),
+                              title: Text(AppLocalizations.of(context)!.english),
                               value: 'en',
                               groupValue: _currentLanguage,
                               onChanged: (value) {
@@ -890,7 +887,7 @@ class _SettingsTabState extends State<SettingsTab> {
                               },
                             ),
                             RadioListTile<String>(
-                              title: const Text("Arabic"),
+                              title: Text(AppLocalizations.of(context)!.arabic),
                               value: 'ar',
                               groupValue: _currentLanguage,
                               onChanged: (value) {
@@ -905,52 +902,53 @@ class _SettingsTabState extends State<SettingsTab> {
                   );
                 },
               ),
+
               // NEW STORAGE SECTION
               // ────────────────────────────────────────
               const Divider(height: 32),
-              const Text(
-                "Storage",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppLocalizations.of(context)!.storage,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               ListTile(
                 leading: const Icon(Icons.storage, color: Color(0xFFBF01FD)),
-                title: const Text("Clear Cache"),
-                subtitle: const Text(
-                    "Remove temporary files, cached images and uploaded media"),
+                title: Text(AppLocalizations.of(context)!.clear_cache),
+                subtitle: Text(AppLocalizations.of(context)!.clear_cache_sub),
                 trailing: const Icon(Icons.delete_sweep, color: Colors.red),
                 onTap: _showClearCacheDialog,
               ),
+
               // ✅ NEW SUPPORT SECTION
               const Divider(height: 32),
-              const Text(
-                "Support",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppLocalizations.of(context)!.support,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               ListTile(
                 leading: const Icon(Icons.help_outline, color: Color(0xFFBF01FD)),
-                title: const Text("Help"),
-                subtitle: const Text("Get help and support"),
+                title: Text(AppLocalizations.of(context)!.help),
+                subtitle: Text(AppLocalizations.of(context)!.help_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: _showHelp,
               ),
               ListTile(
                 leading: const Icon(Icons.info_outline, color: Color(0xFFBF01FD)),
-                title: const Text("About"),
-                subtitle: const Text("App information and version"),
+                title: Text(AppLocalizations.of(context)!.about),
+                subtitle: Text(AppLocalizations.of(context)!.about_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: _showAbout,
               ),
               ListTile(
                 leading: const Icon(Icons.delete_forever, color: Colors.red),
-                title: const Text("Delete Account"),
-                subtitle: const Text("Permanently delete your account"),
+                title: Text(AppLocalizations.of(context)!.delete_account),
+                subtitle: Text(AppLocalizations.of(context)!.delete_account_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () => _navigateTo(const DeleteAccountScreen()),  // ✅ Navigate to screen
               ),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.orange),
-                title: const Text("Logout"),
-                subtitle: const Text("Sign out of your account"),
+                title: Text(AppLocalizations.of(context)!.logout),
+                subtitle: Text(AppLocalizations.of(context)!.logout_sub),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: _logout,
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,7 +22,7 @@ class InviteFriendsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Invite Friends')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_invite_friends)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -48,11 +49,11 @@ class InviteFriendsScreen extends StatelessWidget {
             // Copy button
             ElevatedButton.icon(
               icon: const Icon(Icons.copy),
-              label: const Text('Copy Profile Link'),
+              label: Text(AppLocalizations.of(context)!.copy_profile_link),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: profileLink));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Link copied to clipboard!')),
+                  SnackBar(content: Text(AppLocalizations.of(context)!.link_copied)),
                 );
               },
             ),
@@ -61,7 +62,7 @@ class InviteFriendsScreen extends StatelessWidget {
             // Native share sheet
             ElevatedButton.icon(
               icon: const Icon(Icons.share),
-              label: const Text('Share Link'),
+              label: Text(AppLocalizations.of(context)!.share_link),
               onPressed: () {
                 Share.share('Check out my profile: $profileLink');
               },

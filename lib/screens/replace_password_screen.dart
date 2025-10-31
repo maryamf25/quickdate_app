@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 
 class ReplacePasswordScreen extends StatefulWidget {
@@ -69,7 +70,7 @@ class _ReplacePasswordScreenState extends State<ReplacePasswordScreen> {
               Navigator.pop(context);
               if (onOk != null) onOk();
             },
-            child: const Text("OK"),
+            child: Text(AppLocalizations.of(context)!.common_ok),
           )
         ],
       ),
@@ -79,7 +80,7 @@ class _ReplacePasswordScreenState extends State<ReplacePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Reset Password")),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_reset_password)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -105,7 +106,7 @@ class _ReplacePasswordScreenState extends State<ReplacePasswordScreen> {
               onPressed: isLoading ? null : _replacePassword,
               child: isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Update Password"),
+                  : Text(AppLocalizations.of(context)!.update_password),
             ),
           ],
         ),

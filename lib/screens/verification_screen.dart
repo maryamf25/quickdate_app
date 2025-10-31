@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 
 class VerificationScreen extends StatefulWidget {
   final int userId; final String email;
@@ -15,12 +16,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Two-Factor Verification")),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.two_factor)),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            const Text("Enter the verification code sent to your email/phone."),
+            Text(AppLocalizations.of(context)!.enter_verification_code),
             const SizedBox(height: 20),
             TextField(
               controller: codeController,
@@ -34,7 +35,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               onPressed: isLoading ? null : _verifyCode,
               child: isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Verify"),
+                  : Text(AppLocalizations.of(context)!.verify),
             ),
           ],
         ),

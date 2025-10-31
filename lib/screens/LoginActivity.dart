@@ -7,6 +7,8 @@ import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'social_login_service.dart';
 import '../services/session_manager.dart';
+import '../l10n/app_localizations.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -67,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text("Login to continue finding partner.", style: TextStyle(fontSize: 16)),
+                Text(AppLocalizations.of(context)!.login_subtitle, style: const TextStyle(fontSize: 16)),
                 const SizedBox(height: 30),
                 _buildInputBox(
                   emailController,
@@ -582,7 +584,7 @@ class _LoginScreenState extends State<LoginScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text("OK"),
+                child: Text(AppLocalizations.of(context)!.common_ok),
               ),
             ],
           ),

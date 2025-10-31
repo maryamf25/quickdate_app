@@ -1,45 +1,46 @@
-// utils/lang_controller.dart
-
 import 'package:flutter/material.dart';
-import '../screens/main_settings.dart'; // Assuming MainSettings is here
-import 'app_settings.dart'; // Assuming AppLanguage is here
+import 'package:shared_preferences/shared_preferences.dart';
+
+enum AppLanguage { english, arabic }
 
 class LanguageChangeNotifier extends ChangeNotifier {
-  // Singleton Pattern
-  static final LanguageChangeNotifier instance = LanguageChangeNotifier._();
   LanguageChangeNotifier._();
 
-  // The state that holds the current locale
-  Locale? _appLocale;
+  static final LanguageChangeNotifier instance = LanguageChangeNotifier._();
 
-  Locale? get appLocale => _appLocale;
+  static const String _prefsKey = 'app_language';
 
-  // 1. Initializer: Call this once in main.dart
+  Locale _locale = const Locale('en');
+
+  Locale get appLocale => _locale;
+
   Future<void> loadInitialLanguage() async {
-    // Ensure MainSettings and SharedPreferences are initialized
-    await MainSettings.init();
-
-    // Get the saved language from MainSettings
-    final AppLanguage savedLang = MainSettings.getLanguage();
-    _appLocale = _getLocaleFromAppLanguage(savedLang);
-
-    // Notify to set the initial locale in MaterialApp
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? savedCode = prefs.getString(_prefsKey);
+    final String code = savedCode ?? _deviceFallbackCode();
+    _locale = Locale(code);
     notifyListeners();
   }
 
-  // 2. Changer: Call this from the SettingsTab
-  Future<void> changeLanguage(AppLanguage newLang) async {
-    // 1. Update global settings and save to SharedPreferences
-    await MainSettings.storeLanguage(newLang);
-
-    // 2. Update the internal locale and force MaterialApp to rebuild
-    _appLocale = _getLocaleFromAppLanguage(newLang);
+  Future<void> changeLanguage(AppLanguage language) async {
+    final String code = language == AppLanguage.arabic ? 'ar' : 'en';
+    if (_locale.languageCode == code) return;
+    _locale = Locale(code);
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKey, code);
     notifyListeners();
   }
 
-  // Helper to convert our custom enum to a Flutter Locale
-  Locale _getLocaleFromAppLanguage(AppLanguage lang) {
-    // 'en' for English (default), 'ar' for Arabic (RTL)
-    return Locale(lang == AppLanguage.arabic ? 'ar' : 'en');
+  String _deviceFallbackCode() {
+    final Locale deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
+    final String lc = deviceLocale.languageCode.toLowerCase();
+    switch (lc) {
+      case 'ar':
+        return 'ar';
+      default:
+        return 'en';
+    }
   }
 }
+
+

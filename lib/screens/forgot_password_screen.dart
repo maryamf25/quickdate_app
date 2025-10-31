@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'replace_password_screen.dart';
 import 'package:http/http.dart' as http;
 
@@ -61,7 +62,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(AppLocalizations.of(context)!.common_ok))
         ],
       ),
     );
@@ -70,7 +71,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Forgot Password")),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_forgot_password)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -87,7 +88,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               onPressed: isLoading ? null : _sendEmailCode,
               child: isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Send Verification Code"),
+                  : Text(AppLocalizations.of(context)!.send_verification_code),
             ),
           ],
         ),

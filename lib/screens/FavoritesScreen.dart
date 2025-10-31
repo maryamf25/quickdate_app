@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 
 class FavoritesGridScreen extends StatefulWidget {
@@ -45,7 +46,7 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
     } else {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load favorites')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.error_load_favorites)),
       );
     }
   }
@@ -71,7 +72,7 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
           favorites.removeWhere((fav) => int.tryParse(fav['userData']['id'].toString()) == uid);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from favorites')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.removed_from_favorites)),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -80,7 +81,7 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.error_with_message('$e'))),
       );
     }
   }
@@ -88,7 +89,7 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Favorite Users')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_favorite_users)),
       body: isLoading && favorites.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : GridView.builder(
@@ -110,7 +111,7 @@ class _FavoritesGridScreenState extends State<FavoritesGridScreen> {
               },
               child: Card(
                 color: Colors.grey[200],
-                child: const Center(child: Text('Load More')),
+                child: Center(child: Text(AppLocalizations.of(context)!.load_more)),
               ),
             );
           }

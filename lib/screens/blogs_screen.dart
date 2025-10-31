@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 
 class BlogsScreen extends StatefulWidget {
@@ -54,11 +55,11 @@ class _BlogsScreenState extends State<BlogsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Blogs")),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_blogs)),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : articles.isEmpty
-          ? const Center(child: Text("No blogs found."))
+          ? Center(child: Text(AppLocalizations.of(context)!.no_blogs_found))
           : ListView.builder(
         itemCount: articles.length,
         itemBuilder: (context, index) {
@@ -150,7 +151,7 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : article == null
-          ? const Center(child: Text("Article not found"))
+          ? Center(child: Text(AppLocalizations.of(context)!.article_not_found))
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

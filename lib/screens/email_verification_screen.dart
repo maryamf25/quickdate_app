@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../utils/user_details.dart';
 import '../services/email_verification_service.dart';
 import 'LoginActivity.dart';
+import '../l10n/app_localizations.dart';
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
 
@@ -93,10 +94,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       if (success) {
         // ✅ Show confirmation message before navigating
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Email verified successfully!'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.email_verified_success),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
 

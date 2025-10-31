@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 
 class UserProfileScreen extends StatelessWidget {
   final String username;
@@ -8,7 +9,7 @@ class UserProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('$username\'s Profile')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.title_user_profile(username))),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -27,7 +28,7 @@ class UserProfileScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: const Text('Back'),
+              child: Text(AppLocalizations.of(context)!.back),
             ),
           ],
         ),
