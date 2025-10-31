@@ -1,16 +1,18 @@
 // upgrade_to_premium_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http; // added for profile refresh
 import '../services/razorpay_payment_service.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import '../services/init_cashfree_payment.dart';
 import '../services/paystack_payment_service.dart';
 import '../services/securionpay_payment_service.dart';
-import '../services/authorizenet_payment_service.dart';
 import '../services/iyzipay_payment_service.dart';
 import '../services/aamarpay_payment_service.dart';
 import '../services/flutterwave_payment_service.dart';
-import '../services/lyzipay_payment_service.dart';
+import 'social_login_service.dart';
+import 'card_entry_page.dart';
+import 'authorize_token_page.dart';
+import 'dart:convert';
 void main() {
   runApp(const PremiumUpgradeApp());
 }
@@ -198,14 +200,13 @@ class PremiumUpgradePage extends StatelessWidget {
     print(
         'PremiumUpgradePage: _showPaymentMethods called for plan: $planName, price: $priceDisplay, amount: $priceAmount');
     final paymentMethods = [
-      {'title': 'RazorPay', 'image': 'assets/razorpay.png'},
-      {'title': 'Cashfree', 'image': 'assets/cashfree.png'},
-      {'title': 'Paystack', 'image': 'assets/paystack.png'},
-      {'title': 'SecurionPay', 'image': 'assets/securionpay.png'},
-      {'title': 'AuthorizeNet', 'image': 'assets/authorizenet.png'},
-      {'title': 'LyziPay', 'image': 'assets/lyzipay.png'},
-      {'title': 'AamarPay', 'image': 'assets/aamarpay.png'},
-      {'title': 'FlutterWave', 'image': 'assets/flutterwave.png'},
+      {'title': 'RazorPay', 'image': 'assets/images/icon.png'},
+      {'title': 'Cashfree', 'image': 'assets/images/icon.png'},
+      {'title': 'Paystack', 'image': 'assets/images/icon.png'},
+      {'title': 'SecurionPay', 'image': 'assets/images/icon.png'},
+      {'title': 'AuthorizeNet', 'image': 'assets/images/icon.png'},
+      {'title': 'AamarPay', 'image': 'assets/images/icon.png'},
+      {'title': 'FlutterWave', 'image': 'assets/images/icon.png'},
     ];
 
     showModalBottomSheet(
@@ -293,7 +294,13 @@ class PremiumUpgradePage extends StatelessWidget {
       children: [
         ListTile(
           leading: SizedBox(
-              width: 30, height: 30, child: Image.asset(imagePath)),
+              width: 30,
+              height: 30,
+              child: Image.asset(
+                imagePath,
+                fit: BoxFit.contain,
+                errorBuilder: (ctx, error, stack) => const Icon(Icons.payment, size: 28, color: Colors.grey),
+              )),
           title: Text(title, style: const TextStyle(fontSize: 16,
               fontWeight: FontWeight.w500,
               color: Colors.black87)),
@@ -449,8 +456,9 @@ class PremiumUpgradePage extends StatelessWidget {
 
       case 'AuthorizeNet':
         print('PremiumUpgradePage: Handling Authorize.Net payment');
-        await _handleAuthorizeNetPayment(
-            context, priceAmount, planName, backendUrl);
+        // Determine type based on selected plan - here subscription options map to 'go_pro'
+        final String payType = 'go_pro';
+        await _handleAuthorizeNetPayment(context, priceAmount, planName, backendUrl, type: payType);
         break;
 
       case 'IyziPay':
@@ -468,11 +476,6 @@ class PremiumUpgradePage extends StatelessWidget {
         print('PremiumUpgradePage: Handling FlutterWave payment');
         await _handleFlutterwavePayment(
             context, priceAmount, planName, backendUrl);
-        break;
-
-      case 'LyziPay':
-        print('PremiumUpgradePage: Handling LyziPay payment');
-        await _handleLyziPayPayment(context, priceAmount, planName, backendUrl);
         break;
 
       default:
@@ -573,45 +576,116 @@ class PremiumUpgradePage extends StatelessWidget {
   Future<void> _handleAuthorizeNetPayment(BuildContext context,
       int priceAmount,
       String planName,
-      String backendUrl,) async {
+      String backendUrl, { required String type }) async {
     try {
-      final service = AuthorizeNetPaymentService(backendBaseUrl: backendUrl);
-      final response = await service.initializeTransaction(
-        email: 'test@example.com',
-        firstName: 'Test',
-        lastName: 'User',
-        amount: priceAmount.toDouble(),
-        currency: 'USD',
-        planName: planName,
-      );
+      // 1) Collect basic customer info (name, email, phone) before tokenization
+      final customer = await showDialog<Map<String,String>>(context: context, builder: (ctx) {
+        final nameCtrl = TextEditingController(text: 'Test User');
+        final emailCtrl = TextEditingController(text: 'test@example.com');
+        final phoneCtrl = TextEditingController(text: '9876543210');
+        return AlertDialog(
+          title: const Text('Customer Details'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
+                TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email')),
+                TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, { 'name': nameCtrl.text.trim(), 'email': emailCtrl.text.trim(), 'phone': phoneCtrl.text.trim() }), child: const Text('Continue')),
+          ],
+        );
+      });
 
-      if (response != null && response['transaction_id'] != null &&
-          context.mounted) {
-        await service.showPaymentForm(
-          context: context,
-          planName: planName,
-          amount: priceAmount.toDouble(),
-          onSuccess: () {
-            print('PremiumUpgradePage: Authorize.Net payment successful');
-          },
-          onError: (error) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Authorize.Net Error: $error'),
-                    backgroundColor: Colors.red),
-              );
-            }
-          },
-        );
+      if (customer == null) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment cancelled'), backgroundColor: Colors.orange));
+        return;
       }
+
+      // 2) Fetch Authorize.Net client config from backend
+      final cfgResp = await http.get(Uri.parse('$backendUrl/authorize/config')).timeout(const Duration(seconds: 10));
+      if (cfgResp.statusCode != 200) {
+        String msg = 'Failed to get Authorize.Net config';
+        try { final m = jsonDecode(cfgResp.body); msg = m['message'] ?? msg; } catch(_){}
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+        return;
+      }
+
+      final Map<String,dynamic> cfgJson = jsonDecode(cfgResp.body);
+      final apiLoginId = cfgJson['apiLoginId'] ?? '';
+      final clientKey = cfgJson['clientKey'] ?? '';
+      final mode = cfgJson['mode'] ?? 'SANDBOX';
+
+      if (apiLoginId.isEmpty || clientKey.isEmpty) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment gateway not configured'), backgroundColor: Colors.red));
+        return;
+      }
+
+      // 3) Open WebView tokenization page to collect card and receive opaqueData
+      if (!context.mounted) return;
+      final tokenResult = await Navigator.of(context).push<Map<String,String>>(MaterialPageRoute(builder: (_) => AuthorizeTokenPage(apiLoginId: apiLoginId, clientKey: clientKey, mode: mode)));
+
+      if (tokenResult == null) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Card tokenization cancelled'), backgroundColor: Colors.orange));
+        return;
+      }
+
+      final dataDescriptor = tokenResult['dataDescriptor'];
+      final dataValue = tokenResult['dataValue'];
+
+      if (dataDescriptor == null || dataValue == null) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tokenization failed'), backgroundColor: Colors.red));
+        return;
+      }
+
+      // 4) Post the opaque token to backend (server will no longer receive PAN/CVV)
+      if (!context.mounted) return;
+      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+
+      final body = {
+        'type': type,
+        'price': priceAmount.toString(),
+        'name': customer['name'] ?? '',
+        'email': customer['email'] ?? '',
+        'phone': customer['phone'] ?? '',
+        'dataDescriptor': dataDescriptor,
+        'dataValue': dataValue,
+      };
+
+      final resp = await http.post(Uri.parse('$backendUrl/authorize/pay'), body: body, headers: {'Content-Type': 'application/x-www-form-urlencoded'}).timeout(const Duration(seconds: 30));
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // dismiss progress
+
+      if (resp.statusCode == 200) {
+        final Map<String,dynamic> j = jsonDecode(resp.body);
+        final status = j['status'] ?? 200;
+        final message = j['message'] ?? 'Success';
+        if (status == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.green));
+          return;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message.toString()), backgroundColor: Colors.red));
+          return;
+        }
+      } else {
+        String bodyText = resp.body;
+        String message = 'Payment failed';
+        try { final Map<String,dynamic> j = jsonDecode(bodyText); message = j['message'] ?? message; } catch(_) { message = bodyText.length>200?bodyText.substring(0,200):bodyText; }
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+      }
+
     } catch (e) {
-      print('PremiumUpgradePage ERROR: Authorize.Net error: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Authorize.Net error: $e'), backgroundColor: Colors.red));
       }
     }
+
   }
 
   // IZIPAY PAYMENT HANDLER
@@ -669,40 +743,134 @@ class PremiumUpgradePage extends StatelessWidget {
       String backendUrl,) async {
     try {
       final service = AamarPayPaymentService(backendBaseUrl: backendUrl);
-      final orderId = DateTime
-          .now()
-          .millisecondsSinceEpoch
-          .toString();
-      final response = await service.initializePayment(
-        orderId: orderId,
-        amount: priceAmount.toString(),
-        currency: 'BDT',
+
+      // Retrieve stored auth token (if user logged in) to include with backend call
+      String? token;
+      try {
+        token = await SocialLoginService.getAccessToken();
+      } catch (_) {
+        token = null;
+      }
+
+      final resp = await service.initializePayment(
+        type: 'go_pro', // assuming upgrade to premium is go_pro; change to 'credit' when buying credits
+        price: priceAmount.toString(),
         customerName: 'Test User',
         customerEmail: 'test@example.com',
         customerPhone: '9876543210',
         planName: planName,
+        authToken: token,
       );
 
-      if (response != null && response['payment_url'] != null &&
-          context.mounted) {
-        await service.openPaymentGateway(
-          context: context,
-          paymentUrl: response['payment_url'],
-          orderId: orderId,
-          planName: planName,
-          onSuccess: () {
-            print('PremiumUpgradePage: AamarPay payment successful');
-          },
-          onError: (error) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('AamarPay Error: $error'),
-                    backgroundColor: Colors.red),
-              );
-            }
-          },
-        );
+      if (resp == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to start AamarPay payment (no response).'), backgroundColor: Colors.red),
+          );
+        }
+        return;
       }
+
+      // Service may return structured error object when backend returned HTML or unparsable JSON
+      if (resp['error'] == true) {
+        final msg = resp['message'] ?? 'Payment initialization error';
+        final raw = (resp['raw'] ?? '').toString();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Aamarpay init error: $msg'), backgroundColor: Colors.red),
+          );
+
+          // Show dialog with trimmed raw snippet so developer can inspect server response
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('AamarPay init error'),
+              content: SingleChildScrollView(
+                child: Text(raw.length > 1200 ? raw.substring(0, 1200) + '\n\n...truncated...' : raw),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // Backend returns { status: 200, url: '<hosted-url>' }
+      final paymentUrl = resp['url'] ?? resp['payment_url'] ?? resp['data']?['url'];
+
+      if (paymentUrl == null || paymentUrl.toString().isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Invalid payment URL from server: ${resp.toString()}'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      if (!context.mounted) return;
+
+      await service.openPaymentGateway(
+        context: context,
+        paymentUrl: paymentUrl.toString(),
+        type: 'go_pro',
+        planName: planName,
+        authToken: token,
+        onSuccess: () async {
+          print('PremiumUpgradePage: AamarPay payment successful');
+          // Refresh user state - try to call a central service or provider. If none exists, show a success message.
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Payment completed. Refreshing profile...'), backgroundColor: Colors.green),
+            );
+          }
+
+          // Inline profile refresh to avoid referencing a possibly-missing helper.
+          try {
+            final accessToken = await SocialLoginService.getAccessToken();
+            final userData = await SocialLoginService.getUserData();
+            if (accessToken != null && userData != null && userData['id'] != null) {
+              final userId = userData['id'].toString();
+              final resp = await http.post(
+                Uri.parse('${SocialLoginService.baseUrl}/users/profile'),
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: {
+                  'access_token': accessToken,
+                  'user_id': userId,
+                },
+              );
+
+              if (resp.statusCode == 200) {
+                String body = resp.body;
+                if (body.contains('<')) {
+                  final s = body.indexOf('{');
+                  final e = body.lastIndexOf('}');
+                  if (s != -1 && e != -1 && e > s) body = body.substring(s, e + 1);
+                }
+
+                final Map<String, dynamic> json = jsonDecode(body);
+                dynamic profile = json['data'];
+                if (profile is Map && profile.containsKey('user_data')) profile = profile['user_data'];
+                if (profile is Map) {
+                  try {
+                    await SocialLoginService.saveUserData(Map<String, dynamic>.from(profile));
+                  } catch (_) {}
+                }
+              }
+            }
+          } catch (_) {
+            // ignore profile refresh failures
+          }
+        },
+        onError: (err) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('AamarPay Error: $err'), backgroundColor: Colors.red),
+            );
+          }
+        },
+      );
     } catch (e) {
       print('PremiumUpgradePage ERROR: AamarPay error: $e');
       if (context.mounted) {
@@ -720,17 +888,68 @@ class PremiumUpgradePage extends StatelessWidget {
       String backendUrl,) async {
     try {
       final service = FlutterwavePaymentService(backendBaseUrl: backendUrl);
+
+      // Retrieve stored auth token (if user logged in)
+      final token = await SocialLoginService.getAccessToken();
+      if (token == null || token.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please sign in before making a payment.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Open card entry page to collect card details from the user
+      if (!context.mounted) return;
+      final cardData = await Navigator.of(context).push<Map<String, String?>>(MaterialPageRoute(
+        builder: (_) => CardEntryPage(planName: planName, amount: priceAmount),
+      ));
+
+      // If user cancelled card entry, abort
+      if (cardData == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Card entry cancelled'), backgroundColor: Colors.orange),
+          );
+        }
+        return;
+      }
+
       final response = await service.initializeTransaction(
         email: 'test@example.com',
         customerName: 'Test User',
         amount: priceAmount.toDouble(),
         currency: 'NGN',
         planName: planName,
+        type: 'go_pro',
         phone: '9876543210',
+        authToken: token,
+        cardData: cardData.cast<String,String>(),
       );
 
-      if (response != null && response['data'] != null &&
-          response['data']['link'] != null && context.mounted) {
+      // If response is null, the service already logged details (status/content-type/body).
+      // Show a helpful message to the user and developer so it's obvious what went wrong.
+      if (response == null) {
+        print(
+            'PremiumUpgradePage ERROR: Flutterwave initialize returned null. See FlutterwavePaymentService logs for raw response (HTML/404/etc).');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Payment initialization failed. Check backend response (server returned non-JSON or error HTML).'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (response['data'] != null && response['data']['link'] != null) {
+        if (!context.mounted) return;
         await service.openPaymentPage(
           context: context,
           paymentUrl: response['data']['link'],
@@ -748,59 +967,21 @@ class PremiumUpgradePage extends StatelessWidget {
             }
           },
         );
+      } else {
+        print(
+            'PremiumUpgradePage ERROR: Flutterwave initialize returned unexpected data: $response');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Payment failed to start (invalid server response).'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       print('PremiumUpgradePage ERROR: Flutterwave error: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  // LYZIPAY PAYMENT HANDLER
-  Future<void> _handleLyziPayPayment(BuildContext context,
-      int priceAmount,
-      String planName,
-      String backendUrl,) async {
-    try {
-      final service = LyziPayPaymentService(backendBaseUrl: backendUrl);
-      final customerId = DateTime
-          .now()
-          .millisecondsSinceEpoch
-          .toString();
-      final response = await service.initializePayment(
-        customerId: customerId,
-        customerEmail: 'test@example.com',
-        customerPhone: '9876543210',
-        amount: priceAmount.toDouble(),
-        currency: 'USD',
-        planName: planName,
-      );
-
-      if (response != null && response['checkout_url'] != null &&
-          context.mounted) {
-        await service.openPaymentPage(
-          context: context,
-          checkoutUrl: response['checkout_url'],
-          paymentId: response['payment_id'],
-          planName: planName,
-          onSuccess: () {
-            print('PremiumUpgradePage: LyziPay payment successful');
-          },
-          onError: (error) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('LyziPay Error: $error'),
-                    backgroundColor: Colors.red),
-              );
-            }
-          },
-        );
-      }
-    } catch (e) {
-      print('PremiumUpgradePage ERROR: LyziPay error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),

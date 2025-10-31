@@ -1,12 +1,12 @@
 // lib/services/flutterwave_payment_service.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
+import '../screens/payment_webview_page.dart';
+
 
 class FlutterwavePaymentService {
-  static const String publicKey = 'FLWPUBK_TEST_xxxxx'; // Replace with test key
-  static const String secretKey = 'FLWSECK_TEST_xxxxx'; // Only on backend
+  // Do NOT store secret keys in the client. All secret operations must be done on the backend.
   static const String baseUrl = 'https://api.flutterwave.com/v3';
   final String backendBaseUrl;
 
@@ -19,34 +19,103 @@ class FlutterwavePaymentService {
     required double amount,
     required String currency,
     required String planName,
+    required String type, // 'go_pro' or 'credit'
     required String phone,
+    String? authToken, // optional Bearer token
+    Map<String, String>? extraHeaders, // optional additional headers (e.g., Cookie)
+    Map<String, String>? cardData, // optional card fields: card_number, cvv, expiry_month, expiry_year, postal_code, card_holder_name
   }) async {
     try {
       print('FlutterwavePaymentService: Initializing transaction for $email, amount: $amount $currency, plan: $planName');
 
-      final url = Uri.parse('$backendBaseUrl/payments/flutterwave/initialize');
+      // NOTE: the project's PHP backend exposes endpoints at /aj/fluttewave/pay and /aj/fluttewave/success
+      // Use that endpoint instead of the earlier /payments/flutterwave/initialize
+      final url = Uri.parse('${backendBaseUrl.replaceAll(RegExp(r'\/+\z'), '')}/aj/fluttewave/pay');
+
+      // The backend expects at minimum: amount, email and type (go_pro or credit)
+      // In this app we call Flutterwave for upgrades (go_pro).
+      // PHP backend expects form POST (populate $_POST), so send x-www-form-urlencoded
+      final amountStr = (amount % 1 == 0) ? amount.toInt().toString() : amount.toString();
+      // Build headers and include auth or extra headers if provided
+      final headers = <String, String>{
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      };
+      if (authToken != null && authToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $authToken';
+      }
+      if (extraHeaders != null) {
+        headers.addAll(extraHeaders);
+      }
+
+      final bodyMap = {
+        'email': email,
+        'amount': amountStr,
+        'type': type,
+      };
+      if (cardData != null) {
+        // merge card fields into body so backend can perform direct charge if supported
+        bodyMap.addAll(cardData);
+      }
+
       final response = await http.post(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'email': email,
-          'customer_name': customerName,
-          'amount': amount,
-          'currency': currency,
-          'plan_name': planName,
-          'phone': phone,
-        }),
+        headers: headers,
+        body: bodyMap,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        print('FlutterwavePaymentService: Transaction initialized: $data');
-        return data;
-      } else {
+      print('FlutterwavePaymentService: Received response. Status: ${response.statusCode}');
+      print('FlutterwavePaymentService: Raw body:\n${response.body}');
+
+      if (response.statusCode != 200) {
         print('FlutterwavePaymentService ERROR: Failed to initialize. Status: ${response.statusCode}');
+        print('FlutterwavePaymentService ERROR: Response body:\n${response.body}');
+        return null;
+      }
+
+      final contentType = response.headers['content-type'] ?? '';
+      // Backend should return JSON; if not, log and bail
+      if (!contentType.toLowerCase().contains('application/json')) {
+        print('FlutterwavePaymentService ERROR: Expected JSON but got Content-Type: $contentType');
+        print('FlutterwavePaymentService ERROR: Response body (non-JSON):\n${response.body}');
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      // The provided PHP backend returns $data with numeric 'status' and 'url' when success.
+      // Normalize that to the UI shape { 'status': 'success', 'data': { 'link': ..., 'tx_ref': ... } }
+      try {
+        final int? statusNum = decoded['status'] is int ? decoded['status'] as int : int.tryParse('${decoded['status'] ?? ''}');
+        if (statusNum != null && statusNum == 200 && decoded['url'] != null) {
+          final String link = decoded['url'];
+
+          // Try to extract tx_ref or flw_ref from the link's query parameters
+          String txRef = '';
+          try {
+            final uri = Uri.parse(link);
+            txRef = uri.queryParameters['tx_ref'] ?? uri.queryParameters['txref'] ?? uri.queryParameters['flw_ref'] ?? '';
+          } catch (_) {
+            txRef = '';
+          }
+
+          final normalized = {
+            'status': 'success',
+            'data': {
+              'link': link,
+              'tx_ref': txRef,
+            }
+          };
+
+          print('FlutterwavePaymentService: Normalized init response: $normalized');
+          return normalized;
+        } else {
+          print('FlutterwavePaymentService ERROR: Backend returned unsuccessful init: $decoded');
+          return null;
+        }
+      } catch (e) {
+        print('FlutterwavePaymentService ERROR: Error processing backend init response: $e');
+        print('FlutterwavePaymentService ERROR: Raw response: ${response.body}');
         return null;
       }
     } catch (e) {
@@ -56,32 +125,70 @@ class FlutterwavePaymentService {
   }
 
   /// Verify transaction
+  /// transactionIdentifier: could be transaction_id (flw_ref) or tx_ref depending on redirect
   Future<bool> verifyTransaction({
-    required String transactionReference,
+    required String transactionIdentifier,
+    required String mode, // 'pro' or 'credits' (derived from redirect URL)
+    required int? membershipType, // for pro mode
+    required int? amount, // for credits mode
     required BuildContext context,
   }) async {
     try {
-      print('FlutterwavePaymentService: Verifying transaction with reference: $transactionReference');
+      print('FlutterwavePaymentService: Verifying transaction with identifier: $transactionIdentifier, mode: $mode, membershipType: $membershipType, amount: $amount');
 
-      final url = Uri.parse('$backendBaseUrl/payments/flutterwave/verify');
+      final url = Uri.parse('${backendBaseUrl.replaceAll(RegExp(r'\/+\z'), '')}/aj/fluttewave/success');
+
+      final Map<String, dynamic> body = {
+        'status': 'successful',
+        // backend expects transaction_id (the actual flutterwave transaction id) — use provided identifier as transaction_id
+        'transaction_id': transactionIdentifier,
+      };
+
+      // backend expects 'type' to be 'go_pro' or 'credit'
+      if (mode == 'pro') {
+        body['type'] = 'go_pro';
+        if (membershipType != null) body['membershipType'] = membershipType;
+      } else if (mode == 'credits') {
+        body['type'] = 'credit';
+        if (amount != null) body['amount'] = (amount % 1 == 0) ? amount.toInt().toString() : amount.toString();
+      }
+
+      // Send verification as form-encoded so PHP accesses values via $_POST
       final response = await http.post(
         url,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'transaction_reference': transactionReference,
-        }),
+        body: body.map((k, v) => MapEntry(k, v == null ? '' : v.toString())),
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final isVerified = data['status'] == 'success' || data['data']['status'] == 'successful';
-        print('FlutterwavePaymentService: Verification result: $isVerified');
-        return isVerified;
-      } else {
+      print('FlutterwavePaymentService: Verify response status: ${response.statusCode}');
+      print('FlutterwavePaymentService: Verify raw body:\n${response.body}');
+
+      if (response.statusCode != 200) {
         print('FlutterwavePaymentService ERROR: Verification failed. Status: ${response.statusCode}');
+        return false;
+      }
+
+      final contentType = response.headers['content-type'] ?? '';
+      if (!contentType.toLowerCase().contains('application/json')) {
+        print('FlutterwavePaymentService ERROR: Expected JSON in verification but got Content-Type: $contentType');
+        print('FlutterwavePaymentService ERROR: Response body (non-JSON):\n${response.body}');
+        return false;
+      }
+
+      try {
+        final data = jsonDecode(response.body);
+        // PHP backend uses either ['code']==200 or ['status']==200 in different branches
+        final int? codeNum = data['code'] is int ? data['code'] as int : int.tryParse('${data['code'] ?? ''}');
+        final int? statusNum = data['status'] is int ? data['status'] as int : int.tryParse('${data['status'] ?? ''}');
+        final bool ok = (codeNum != null && codeNum == 200) || (statusNum != null && statusNum == 200);
+        print('FlutterwavePaymentService: Verification result ok=$ok payload=$data');
+        return ok;
+      } catch (e) {
+        print('FlutterwavePaymentService ERROR: JSON parse error during verification: $e');
+        print('FlutterwavePaymentService ERROR: Raw verification body:\n${response.body}');
         return false;
       }
     } catch (e) {
@@ -102,101 +209,22 @@ class FlutterwavePaymentService {
     try {
       print('FlutterwavePaymentService: Opening payment page. URL: $paymentUrl');
 
-      final controller = WebViewController();
-      controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-
-      controller.setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (url) {
-            print('FlutterwavePaymentService: WebView page started: $url');
-            // Check for completion redirect
-            if (url.contains('status=completed') || url.contains('tx_ref=')) {
-              _extractAndVerify(context, url, transactionReference, planName, onSuccess, onError);
-            }
-          },
-          onWebResourceError: (error) {
-            print('FlutterwavePaymentService ERROR: WebView error: ${error.description}');
-            onError('Payment page error: ${error.description}');
-          },
-        ),
-      );
-
-      await controller.loadRequest(Uri.parse(paymentUrl));
-
+      // Navigate to a full screen WebView page that mimics the provided Android UI
       if (!context.mounted) return;
-
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => Dialog(
-          insetPadding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                color: Colors.purple,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Flutterwave Payment',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        onError('Payment cancelled by user');
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: WebViewWidget(controller: controller),
-              ),
-            ],
-          ),
+      final service = this;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (ctx) => PaymentWebViewPage(
+          service: service,
+          paymentUrl: paymentUrl,
+          transactionReference: transactionReference,
+          planName: planName,
+          onSuccess: onSuccess,
+          onError: onError,
         ),
-      );
+      ));
     } catch (e) {
       print('FlutterwavePaymentService ERROR: Exception in openPaymentPage: $e');
       onError('Failed to open payment page: $e');
     }
   }
-
-  void _extractAndVerify(
-    BuildContext context,
-    String url,
-    String transactionReference,
-    String planName,
-    VoidCallback onSuccess,
-    Function(String) onError,
-  ) {
-    Navigator.of(context).pop();
-    verifyTransaction(transactionReference: transactionReference, context: context)
-        .then((isVerified) {
-      if (isVerified) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Payment verified successfully for $planName!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        onSuccess();
-      } else {
-        onError('Payment verification failed');
-      }
-    })
-        .catchError((e) {
-      onError('Verification error: $e');
-    });
-  }
 }
-

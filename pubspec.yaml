@@ -80,3 +80,4 @@ flutter:
     - assets/images/icon.png
     - assets/images/icon_splash.png
     - assets/images/TitileImages.png
+    - assets/authorize/accept.html

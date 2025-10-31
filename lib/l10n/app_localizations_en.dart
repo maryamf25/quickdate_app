@@ -365,4 +365,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get email_verified_success => '✅ Email verified successfully!';
+
+  @override
+  String get affiliates_earn_message =>
+      'Earn up to for each user you refer to us!';
+
+  @override
+  String get affiliates_share_message =>
+      'Share this link with your friends and earn rewards!';
 }

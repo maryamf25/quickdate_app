@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -567,6 +566,74 @@ class SocialLoginService {
     } catch (e) {
       debugPrint('❌ Error fetching transactions: $e');
       return null;
+    }
+  }
+
+  /// Refresh user's profile from server, save it locally if available.
+  /// Returns true if profile was refreshed and saved, false otherwise.
+  static Future<bool> refreshProfileIfAvailable() async {
+    try {
+      final token = await getAccessToken();
+      if (token == null) return false;
+
+      final userData = await getUserData();
+      String userId = '0';
+      if (userData != null && userData['id'] != null) {
+        userId = userData['id'].toString();
+      }
+
+      if (userId == '0') return false;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/profile'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': token,
+          'user_id': userId,
+        },
+      );
+
+      if (response.statusCode != 200) return false;
+
+      String responseBody = response.body;
+      if (responseBody.contains('<')) {
+        final int s = responseBody.indexOf('{');
+        final int e = responseBody.lastIndexOf('}');
+        if (s != -1 && e != -1 && e > s) responseBody = responseBody.substring(s, e + 1);
+      }
+
+      final data = jsonDecode(responseBody);
+      // profile may be nested inside data or data.user_data
+      dynamic profile = data['data'];
+      if (profile is Map && profile.containsKey('user_data')) profile = profile['user_data'];
+
+      if (profile is Map) {
+        try {
+          await saveUserData(Map<String, dynamic>.from(profile));
+        } catch (_) {}
+
+        // update UserDetails.isPro if provided
+        try {
+          final dynamic serverPro = profile['is_pro'] ?? profile['isPro'] ?? profile['pro'] ?? profile['pro_time'];
+          if (serverPro != null) {
+            if (serverPro is String) {
+              UserDetails.isPro = (serverPro == '1' || serverPro.toLowerCase() == 'true') ? '1' : '0';
+            } else if (serverPro is int) {
+              UserDetails.isPro = serverPro == 1 ? '1' : '0';
+            } else if (serverPro is bool) {
+              UserDetails.isPro = serverPro ? '1' : '0';
+            }
+          }
+        } catch (_) {}
+
+        return true;
+      }
+
+      return false;
+    } catch (e, st) {
+      debugPrint('❌ refreshProfileIfAvailable error: $e');
+      debugPrint(st.toString());
+      return false;
     }
   }
 

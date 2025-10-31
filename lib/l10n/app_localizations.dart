@@ -781,6 +781,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'✅ Email verified successfully!'**
   String get email_verified_success;
+
+  /// No description provided for @affiliates_earn_message.
+  ///
+  /// In en, this message translates to:
+  /// **'Earn up to for each user you refer to us!'**
+  String get affiliates_earn_message;
+
+  /// No description provided for @affiliates_share_message.
+  ///
+  /// In en, this message translates to:
+  /// **'Share this link with your friends and earn rewards!'**
+  String get affiliates_share_message;
 }
 
 class _AppLocalizationsDelegate

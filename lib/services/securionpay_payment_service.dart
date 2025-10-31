@@ -1,7 +1,6 @@
 // lib/services/securionpay_payment_service.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
 
 class SecurionPayPaymentService {
@@ -39,12 +38,45 @@ class SecurionPayPaymentService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        print('SecurionPayPaymentService: Charge initialized: $data');
-        return data;
+        final bodyStr = response.body;
+        final contentType = (response.headers['content-type'] ?? '').toLowerCase();
+        final looksLikeHtml = bodyStr.contains('<') || contentType.contains('text/html');
+        if (looksLikeHtml) {
+          final snippet = bodyStr.substring(0, bodyStr.length > 1000 ? 1000 : bodyStr.length);
+          print('SecurionPayPaymentService ERROR: Non-JSON HTML response from backend: ${snippet}');
+          return {
+            'error': true,
+            'status': response.statusCode,
+            'message': 'Non-JSON (HTML) response from backend',
+            'raw': snippet,
+          };
+        }
+
+        try {
+          final data = jsonDecode(bodyStr);
+          print('SecurionPayPaymentService: Charge initialized: $data');
+          return data;
+        } catch (e) {
+          final snippet = bodyStr.substring(0, bodyStr.length > 1000 ? 1000 : bodyStr.length);
+          print('SecurionPayPaymentService ERROR: Failed to parse JSON response: $e');
+          print('SecurionPayPaymentService ERROR: Response body (first 1000 chars): ${snippet}');
+          return {
+            'error': true,
+            'status': response.statusCode,
+            'message': 'Failed to parse JSON response',
+            'raw': snippet,
+            'exception': e.toString(),
+          };
+        }
       } else {
         print('SecurionPayPaymentService ERROR: Failed to initialize. Status: ${response.statusCode}');
-        return null;
+        final snippet = response.body.substring(0, response.body.length > 800 ? 800 : response.body.length);
+        return {
+          'error': true,
+          'status': response.statusCode,
+          'message': 'HTTP ${response.statusCode}',
+          'raw': snippet,
+        };
       }
     } catch (e) {
       print('SecurionPayPaymentService ERROR: Exception during initialization: $e');
@@ -80,10 +112,26 @@ class SecurionPayPaymentService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final token = data['token'];
-        print('SecurionPayPaymentService: Token generated: $token');
-        return token;
+        final bodyStr = response.body;
+        final contentType = (response.headers['content-type'] ?? '').toLowerCase();
+        final looksLikeHtml = bodyStr.contains('<') || contentType.contains('text/html');
+        if (looksLikeHtml) {
+          final snippet = bodyStr.substring(0, bodyStr.length > 1000 ? 1000 : bodyStr.length);
+          print('SecurionPayPaymentService ERROR: Non-JSON HTML response from backend: ${snippet}');
+          return null;
+        }
+
+        try {
+          final data = jsonDecode(bodyStr);
+          final token = data['token'];
+          print('SecurionPayPaymentService: Token generated: $token');
+          return token;
+        } catch (e) {
+          final snippet = bodyStr.substring(0, bodyStr.length > 1000 ? 1000 : bodyStr.length);
+          print('SecurionPayPaymentService ERROR: Failed to parse JSON response: $e');
+          print('SecurionPayPaymentService ERROR: Response body (first 1000 chars): ${snippet}');
+          return null;
+        }
       } else {
         print('SecurionPayPaymentService ERROR: Tokenization failed. Status: ${response.statusCode}');
         return null;
@@ -119,10 +167,26 @@ class SecurionPayPaymentService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final isSuccessful = data['status'] == 'APPROVED' || data['status'] == 'success';
-        print('SecurionPayPaymentService: Charge creation result: $isSuccessful');
-        return isSuccessful;
+        final bodyStr = response.body;
+        final contentType = (response.headers['content-type'] ?? '').toLowerCase();
+        final looksLikeHtml = bodyStr.contains('<') || contentType.contains('text/html');
+        if (looksLikeHtml) {
+          final snippet = bodyStr.substring(0, bodyStr.length > 1000 ? 1000 : bodyStr.length);
+          print('SecurionPayPaymentService ERROR: Non-JSON HTML response from backend: ${snippet}');
+          return false;
+        }
+
+        try {
+          final data = jsonDecode(bodyStr);
+          final isSuccessful = data['status'] == 'APPROVED' || data['status'] == 'success';
+          print('SecurionPayPaymentService: Charge creation result: $isSuccessful');
+          return isSuccessful;
+        } catch (e) {
+          final snippet = bodyStr.substring(0, bodyStr.length > 1000 ? 1000 : bodyStr.length);
+          print('SecurionPayPaymentService ERROR: Failed to parse JSON response: $e');
+          print('SecurionPayPaymentService ERROR: Response body (first 1000 chars): ${snippet}');
+          return false;
+        }
       } else {
         print('SecurionPayPaymentService ERROR: Charge creation failed. Status: ${response.statusCode}');
         return false;
@@ -250,4 +314,3 @@ class SecurionPayPaymentService {
     );
   }
 }
-

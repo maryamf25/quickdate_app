@@ -1,0 +1,21 @@
+{
+  "name": "aamarpay-demo-server",
+  "version": "1.0.0",
+  "description": "Example Node server that implements Aamarpay endpoints /aamarpay/get and /aamarpay/success for testing",
+  "main": "aamarpay_server.js",
+  "scripts": {
+    "start": "node aamarpay_server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "authorizenet": "^2.2.0",
+    "axios": "^1.4.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "uuid": "^9.0.0"
+  }
+}
