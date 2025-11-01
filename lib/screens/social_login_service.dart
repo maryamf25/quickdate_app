@@ -161,7 +161,7 @@ class SocialLoginService {
 
       // Backend expects the Google ID token in the field 'access_token' and provider 'google'
       final response = await http.post(
-        Uri.parse('$baseUrl/users/social-login'),
+        Uri.parse('$baseUrl/users/social_login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: {
           'access_token': googleToken,
@@ -407,7 +407,7 @@ class SocialLoginService {
 
       // Send to backend API
       final response = await http.post(
-        Uri.parse('$baseUrl/users/social-login'),
+        Uri.parse('$baseUrl/users/social_login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: {
           'access_token': tokenString,
@@ -445,6 +445,129 @@ class SocialLoginService {
       return null;
     }
   }
+
+  //================ WoWonder Sign In (Unified) =================
+
+  /// Single unified WoWonder authentication method
+  /// Automatically chooses between client-side (mobile) or server-side (web) flow
+  static Future<Map<String, dynamic>?> signInWithWowonder({
+    required String username,
+    required String password,
+    required String domain,
+    required String appKey,
+  }) async {
+    try {
+      // On web, always use server-side (CORS blocks client-side)
+      // On mobile, try client-side first, fallback to server-side
+      if (!kIsWeb && domain.isNotEmpty) {
+        final clientResult = await _wowonderClientAuth(username, password, domain, appKey);
+        if (clientResult != null) return clientResult;
+      }
+
+      // Server-side fallback (or primary on web)
+      return await _wowonderServerAuth(username, password, domain, appKey);
+    } catch (e) {
+      debugPrint('❌ WoWonder error: $e');
+      return null;
+    }
+  }
+
+  // Client-side: App authenticates with WoWonder, sends base64 user_data to backend
+  static Future<Map<String, dynamic>?> _wowonderClientAuth(
+    String username, String password, String domain, String appKey,
+  ) async {
+    try {
+      // Login to WoWonder
+      final loginResp = await http.post(
+        Uri.parse('$domain/api_request'),
+        body: {'type': 'login', 'username': username, 'password': password, 'app_key': appKey},
+      ).timeout(const Duration(seconds: 15));
+
+      if (loginResp.statusCode != 200) return null;
+
+      final loginJson = jsonDecode(loginResp.body);
+      final token = loginJson['access_token'] ?? loginJson['data']?['access_token'];
+      if (token == null) return null;
+
+      // Get user data
+      final profileResp = await http.get(
+        Uri.parse('$domain/api_request?access_token=${Uri.encodeComponent(token)}&type=get_user_data'),
+      ).timeout(const Duration(seconds: 15));
+
+      if (profileResp.statusCode != 200) return null;
+
+      final profileJson = jsonDecode(profileResp.body);
+      final userData = profileJson['user_data'] ?? profileJson['data'];
+      if (userData == null) return null;
+
+      // Send to backend
+      final encoded = base64.encode(utf8.encode(jsonEncode({'user_data': userData})));
+      return await _postWowonderToBackend({'access_token': encoded, 'provider': 'wowonder'});
+    } catch (e) {
+      debugPrint('⚠️ Client-side WoWonder failed: $e');
+      return null;
+    }
+  }
+
+  // Server-side: Backend authenticates with WoWonder
+  static Future<Map<String, dynamic>?> _wowonderServerAuth(
+    String username, String password, String domain, String appKey,
+  ) async {
+    return await _postWowonderToBackend({
+      'provider': 'wowonder',
+      'wow_username': username,
+      'wow_password': password,
+      'wow_domain': domain,
+      'wow_app_key': appKey,
+    });
+  }
+
+  // Post to backend and handle response
+  static Future<Map<String, dynamic>?> _postWowonderToBackend(Map<String, String> body) async {
+    body['mobile_device_id'] = UserDetails.deviceId.isNotEmpty
+        ? UserDetails.deviceId
+        : "device_${DateTime.now().millisecondsSinceEpoch}";
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/users/social_login'),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: body,
+    ).timeout(const Duration(seconds: 20));
+
+    debugPrint('📤 Backend response: ${response.statusCode}');
+    if (response.statusCode == 401) {
+      debugPrint('🔒 401 Error - Backend needs WoWonder handler! See: BACKEND_FIX_WOWONDER.php');
+    }
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['data'] != null) {
+        await saveAccessToken(data['data']['access_token']?.toString() ?? '');
+        await saveUserData(Map<String, dynamic>.from(data['data']));
+        return Map<String, dynamic>.from(data['data']);
+      }
+    }
+    return null;
+  }
+
+  // DEPRECATED: Use signInWithWowonder() instead
+  @Deprecated('Use signInWithWowonder() instead')
+  static Future<Map<String, dynamic>?> signInWithWowonderFromEncodedToken(String token) =>
+      _postWowonderToBackend({'access_token': token, 'provider': 'wowonder'});
+
+  @Deprecated('Use signInWithWowonder() instead')
+  static Future<Map<String, dynamic>?> signInWithWowonderFromUserData(Map<String, dynamic> userData) =>
+      signInWithWowonderFromEncodedToken(base64.encode(utf8.encode(jsonEncode({'user_data': userData}))));
+
+  @Deprecated('Use signInWithWowonder() instead')
+  static Future<Map<String, dynamic>?> signInWithWowonderWithCredentials({
+    required String username, required String password, String? domain, String? appKey,
+  }) => _wowonderServerAuth(username, password, domain ?? '', appKey ?? '');
+
+  @Deprecated('Use signInWithWowonder() instead')
+  static Future<Map<String, dynamic>?> signInWithWowonderClientFlow({
+    required String username, required String password, String? domain, String? appKey,
+  }) => _wowonderClientAuth(username, password, domain ?? '', appKey ?? '');
 
   //================ Sign Out =================
   static Future<void> signOut() async {

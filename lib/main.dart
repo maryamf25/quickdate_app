@@ -6,7 +6,7 @@ import 'services/session_manager.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'utils/lang_controller.dart';
-import 'screens/main_settings.dart';
+import 'screens/main_settings.dart' hide AppSettings;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +19,7 @@ void main() async {
 
   // ✅ Initialize app settings
   await MainSettings.init();
+
 
   // ✅ Load saved language before app starts
   await LanguageChangeNotifier.instance.loadInitialLanguage();

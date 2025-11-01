@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../utils/user_details.dart';
+import '../utils/app_settings.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -368,9 +370,7 @@ class _LoginScreenState extends State<LoginScreen> {
       height: 50,
       width: 50,
       child: ElevatedButton(
-        onPressed: () {
-          // TODO: handle WoWonder login here
-        },
+        onPressed: _loginWithWowonder,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFFFFF),
           foregroundColor: Colors.white,
@@ -388,6 +388,84 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  // Prompt user for Wowonder credentials (username/password)
+  Future<Map<String, String>?> _promptForWowonderCredentials() async {
+    final usernameController = TextEditingController();
+    final passwordController = TextEditingController();
+
+    return await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('WoWonder Login'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: usernameController, decoration: const InputDecoration(labelText: 'Username or Email')),
+              TextField(controller: passwordController, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              final map = <String, String>{};
+              map['username'] = usernameController.text.trim();
+              map['password'] = passwordController.text;
+              Navigator.pop(context, map);
+            },
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loginWithWowonder() async {
+    setState(() => isLoading = true);
+
+    try {
+      // Prompt for WoWonder credentials (username/password). We no longer ask the user for domain.
+      final creds = await _promptForWowonderCredentials();
+      if (creds == null) {
+        _showDialog('Cancelled', 'WoWonder login was cancelled.');
+        return;
+      }
+
+      final username = creds['username'] ?? '';
+      final password = creds['password'] ?? '';
+
+      if (username.isEmpty || password.isEmpty) {
+        _showDialog('Error', 'Please enter WoWonder username (or email) and password.');
+        return;
+      }
+
+      // Debug: print configured domain/appKey
+      debugPrint('🔎 AppSettings.wowonderDomainUri="${AppSettings.wowonderDomainUri}"');
+      debugPrint('🔎 AppSettings.wowonderAppKey="${AppSettings.wowonderAppKey}"');
+
+      // Use unified WoWonder login method (handles client-side and server-side automatically)
+      final result = await SocialLoginService.signInWithWowonder(
+        username: username,
+        password: password,
+        domain: AppSettings.wowonderDomainUri,
+        appKey: AppSettings.wowonderAppKey,
+      );
+
+      if (result != null) {
+        await _handleLoginSuccess(result, result['email'] ?? username);
+      } else {
+        _showDialog('Error', 'WoWonder login failed. Please check credentials or server configuration.');
+      }
+    } catch (e) {
+      _showDialog('Error', 'WoWonder login error: $e');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
   Future<void> _loginUser() async {
     String username = emailController.text.trim();
     String password = passwordController.text;

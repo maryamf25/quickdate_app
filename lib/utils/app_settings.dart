@@ -35,4 +35,8 @@ class AppSettings {
   // Other
   static bool registerEnabled = true;
   static bool premiumSystemEnabled = true;
+
+  // WoWonder integration (optional defaults)
+  static String wowonderDomainUri = 'https://demo.wowonder.com';
+  static String wowonderAppKey = '131c471c8b4edf662dd0ebf7adf3c3d7365838b9';
 }
