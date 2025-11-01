@@ -47,9 +47,8 @@ class _MainProfileScreenState extends State<MainProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.monetization_on, color: Colors.yellow),
-          onPressed: () {
+        leading: GestureDetector(
+          onTap: () {
             print('MainProfileScreen: Navigating to Credits Page.');
             Navigator.push(
               context,
@@ -58,6 +57,31 @@ class _MainProfileScreenState extends State<MainProfileScreen> {
               ),
             );
           },
+          child: Container(
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.yellow.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.monetization_on, color: Colors.orange, size: 14),
+                  const SizedBox(height: 1),
+                  Text(
+                    UserDetails.balance.length > 4 ? '${UserDetails.balance.substring(0, 4)}+' : UserDetails.balance,
+                    style: const TextStyle(
+                      color: Colors.orange,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
         title: const Text('My Profile'),
         centerTitle: true,
@@ -235,7 +259,7 @@ class _MainProfileScreenState extends State<MainProfileScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => InviteFriendsScreen(
-                          profileLink: 'https://yourapp.com/profile/${UserDetails.userId}',
+                          profileLink: 'http://play.google.com/store/apps/details?id=com.quickdatesocial.android',
                         ),
                       ),
                     );

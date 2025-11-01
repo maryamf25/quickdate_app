@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'social_login_service.dart';
 import '../utils/app_settings.dart';
 import '../utils/user_details.dart';
-import 'LoginActivity.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -671,34 +669,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child: const Text(
-                'Upgrade to Premium',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -707,10 +677,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Debug print every build so we can trace UI state at runtime
-    if (kDebugMode) {
-      print('🧭 build checked=$_checkedPremium loading=$_loading isPremium=$_isPremiumUser tab=$_currentTabIndex filtered=${_filteredNotifications.length} all=${_allNotifications.length}');
-    }
     // Gate build method while we determine premium status
     if (!_checkedPremium) {
       return Scaffold(
@@ -738,27 +704,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ),
         child: Column(
           children: [
-            // Debug banner (visible only in debug builds)
-            if (kDebugMode)
-              Container(
-                color: Colors.black12,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Row(
-                  children: [
-                    Text('checked: ${_checkedPremium ? 'T' : 'F'}', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 8),
-                    Text('loading: ${_loading ? 'T' : 'F'}', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 8),
-                    Text('premium: ${_isPremiumUser ? 'T' : 'F'}', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 8),
-                    Text('tab: $_currentTabIndex', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 8),
-                    Text('all:${_allNotifications.length}', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 8),
-                    Text('filtered:${_filteredNotifications.length}', style: const TextStyle(fontSize: 12)),
-                  ],
-                ),
-              ),
              // Custom AppBar with gradient background
              Container(
                padding: EdgeInsets.only(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'mainprofile.dart';
 import '../services/razorpay_payment_service.dart'; // Import Razorpay service
+import '../utils/user_details.dart'; // Import UserDetails to access balance
 
 // Import the reusable payment method bottom sheet
 import '../widgets/payment_method_bottom_sheet.dart'; // Adjust path as needed
@@ -238,22 +239,22 @@ class _CreditsPageState extends State<CreditsPage> {
               ),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.all(20.0),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Your QuickDate Credits balance',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 16,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
-                  '0 Credits',
-                  style: TextStyle(
+                  '${UserDetails.balance} Credits',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 32,
                     fontWeight: FontWeight.bold,

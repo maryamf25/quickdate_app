@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -44,35 +43,89 @@ class StickersBottomSheet extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Text(
-            'Select a Sticker',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Select a Sticker',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           Expanded(
-            child: GridView.builder(
-              itemCount: stickers.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-              ),
-              itemBuilder: (context, index) {
-                final sticker = stickers[index];
-                return GestureDetector(
-                  onTap: () {
-                    onStickerSelected(sticker);
-                    Navigator.pop(context);
-                  },
-                  child: Image.network(
-                    sticker.url,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.broken_image),
+            child: stickers.isEmpty
+                ? _buildEmptyState()
+                : GridView.builder(
+                    itemCount: stickers.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemBuilder: (context, index) {
+                      final sticker = stickers[index];
+                      return GestureDetector(
+                        onTap: () {
+                          onStickerSelected(sticker);
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              sticker.url,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                print('❌ Failed to load sticker: ${sticker.url}');
+                                return const Center(
+                                  child: Icon(Icons.broken_image, color: Colors.grey),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.sentiment_neutral, size: 48, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'No stickers right now',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Stickers will appear here when they become available',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
       ),
@@ -184,7 +237,7 @@ class MediaSelectionBottomSheet extends StatelessWidget {
         width: 50,
         height: 50,
         decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.1),
+          color: Colors.blue.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(25),
         ),
         child: Icon(icon, color: Colors.blue, size: 24),
@@ -229,9 +282,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
   List<dynamic> _messages = [];
+  List<Sticker> _stickers = [];
   bool _loading = true;
   bool _sending = false;
   bool _showEmojiPicker = false;
+  bool _loadingStickers = true;
   FocusNode _focusNode = FocusNode();
 
   // Camera variables
@@ -242,10 +297,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchStickers();
+    _loadStickers();
     _fetchMessages();
     _markMessagesAsRead();
     _initializeCamera();
+
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
         setState(() {
@@ -253,6 +309,28 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         });
       }
     });
+  }
+
+  // Load stickers and store in state
+  Future<void> _loadStickers() async {
+    setState(() {
+      _loadingStickers = true;
+    });
+
+    try {
+      final stickers = await _fetchStickers();
+      setState(() {
+        _stickers = stickers;
+        _loadingStickers = false;
+      });
+      print('✅ Loaded ${stickers.length} stickers into state');
+    } catch (e) {
+      print('❌ Error loading stickers: $e');
+      setState(() {
+        _stickers = [];
+        _loadingStickers = false;
+      });
+    }
   }
 
   // ---------------- Camera Implementation ----------------
@@ -345,49 +423,94 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   // ---------------- Fetch Stickers ----------------
   Future<List<Sticker>> _fetchStickers() async {
+    // Use the working endpoint from PowerShell command
+    const String endpoint = 'https://backend.staralign.me/endpoint/v1/models/options/get_stickers';
+
     try {
-      final url = Uri.parse('${SocialLoginService.baseUrl}/options/stickers/get');
+      print('🎯 Fetching stickers from: $endpoint');
+
       final response = await http.post(
-        url,
+        Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
         },
         body: {'access_token': UserDetails.accessToken},
       );
 
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response}');
+      print('🎯 Response Status: ${response.statusCode}');
+      print('🎯 Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          print('Error: Empty response body');
-          return [];
-        }
+        try {
+          final data = json.decode(response.body);
+          print('🎯 Decoded Data: $data');
 
-        final data = json.decode(response.body);
-        print('Decoded Data: $data');
+          if (data['code'] == 200 && data['data'] != null) {
+            final List<dynamic> stickersData = List<dynamic>.from(data['data']);
+            print('🎯 Found ${stickersData.length} stickers from backend');
 
-        if (data['code'] == 200 && data['data'] != null) {
-          final List<dynamic> stickersData = List<dynamic>.from(data['data']);
-          print('Stickers Data: $stickersData');
-          return stickersData
-              .map((stickerData) => Sticker(
-            id: stickerData['id'].toString(),
-            url: stickerData['file'].toString(),
-          ))
-              .toList();
-        } else {
-          print('Error: No stickers data or invalid response code');
+            if (stickersData.isNotEmpty) {
+              final stickers = stickersData
+                  .where((stickerData) => stickerData != null &&
+                         stickerData['id'] != null &&
+                         stickerData['file'] != null)
+                  .map((stickerData) {
+                    String id = stickerData['id'].toString();
+                    String fileUrl = stickerData['file'].toString();
+
+                    // Ensure the file URL is properly formatted
+                    if (fileUrl.isNotEmpty && !fileUrl.startsWith('http')) {
+                      if (fileUrl.startsWith('/')) {
+                        fileUrl = 'https://backend.staralign.me$fileUrl';
+                      } else {
+                        fileUrl = 'https://backend.staralign.me/$fileUrl';
+                      }
+                    }
+
+                    print('🎯 Sticker ID: $id, URL: $fileUrl');
+
+                    return Sticker(
+                      id: id,
+                      url: fileUrl,
+                    );
+                  })
+                  .toList();
+
+              if (stickers.isNotEmpty) {
+                print('✅ Successfully loaded ${stickers.length} stickers from backend');
+                return stickers;
+              }
+            } else {
+              print('🎯 Backend returned empty stickers array');
+              print('🎯 No stickers available - returning empty list');
+              return [];
+            }
+          } else {
+            print('❌ Invalid response - Code: ${data['code']}, Message: ${data['message']}');
+            if (data['errors'] != null) {
+              print('❌ Errors: ${data['errors']}');
+            }
+          }
+        } catch (jsonError) {
+          print('❌ JSON decode error: $jsonError');
+          print('❌ Response body: ${response.body}');
         }
+      } else if (response.statusCode == 401) {
+        print('❌ Unauthorized access - check access token');
+        print('❌ Access token: ${UserDetails.accessToken.isNotEmpty ? "Present" : "Missing"}');
       } else {
-        print('Error: Received non-200 status code');
+        print('❌ HTTP ${response.statusCode} from endpoint');
+        print('❌ Response: ${response.body}');
       }
-      return [];
-    } catch (e) {
-      print('Error while fetching stickers: $e');
-      return [];
+    } catch (networkError) {
+      print('❌ Network error: $networkError');
     }
+
+    print('❌ Sticker endpoint failed - no stickers available');
+    return [];
   }
+
 
   // ---------------- Send Text Message ----------------
   Future<void> _sendMessage() async {
@@ -416,7 +539,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         if (data['status'] == 200) {
           _messageController.clear();
           setState(() {
-            _messages.insert(0, {
+            _messages.add({
               'from': int.parse(UserDetails.userId.toString()),
               'to': widget.conversation['user_id'],
               'text': message,
@@ -443,8 +566,65 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  // ---------------- Premium Check Methods ----------------
+  // Check if user has premium access
+  bool _isPremiumUser() {
+    return UserDetails.isPro == "1" || UserDetails.isPro.toLowerCase() == "true";
+  }
+
+  // Show dialog when premium is required
+  void _showPremiumRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.star, color: Colors.amber, size: 24),
+              SizedBox(width: 8),
+              Text('Premium Feature'),
+            ],
+          ),
+          content: const Text(
+            'Sending photos, videos and files is a premium feature. Upgrade to premium to unlock media sharing and many more features!',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _navigateToUpgrade();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Upgrade Now'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Navigate to upgrade screen
+  void _navigateToUpgrade() {
+    // You can implement navigation to your premium upgrade screen here
+    Navigator.pushNamed(context, '/upgrade-premium');
+  }
+
   // ---------------- Media Selection ----------------
   void _showMediaSelectionSheet() {
+    // Check if user is premium
+    if (!_isPremiumUser()) {
+      _showPremiumRequiredDialog();
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -774,6 +954,56 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  // ---------------- Send Sticker Message ----------------
+  Future<void> _sendStickerMessage(Sticker sticker) async {
+    if (_sending) return;
+
+    setState(() => _sending = true);
+
+    try {
+      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_sticker_message');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'access_token': UserDetails.accessToken,
+          'to_userid': widget.conversation['user_id'].toString(),
+          'sticker_id': sticker.id,
+          'hash_id': UserDetails.accessToken,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 200) {
+          setState(() {
+            _messages.add({
+              'from': int.parse(UserDetails.userId.toString()),
+              'to': widget.conversation['user_id'],
+              'text': '',
+              'media': '',
+              'sticker': sticker.url,
+              'seen': 0,
+              'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+              'message_type': 'sticker',
+              'type': 'sent',
+            });
+          });
+          _scrollToBottom();
+          if (widget.onMessageSent != null) widget.onMessageSent!();
+        } else {
+          _showError(data['message']?.toString() ?? 'Failed to send sticker');
+        }
+      } else {
+        _showError('Server error ${response.statusCode}');
+      }
+    } catch (e) {
+      _showError('Failed to send sticker: $e');
+    } finally {
+      setState(() => _sending = false);
+    }
+  }
+
   // ---------------- Send Image Message (Mobile) ----------------
   Future<void> _sendImageMessage(File imageFile) async {
     try {
@@ -798,61 +1028,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         final data = json.decode(response.body);
         if (data['status'] == 200) {
           setState(() {
-            _messages.insert(0, {
-              'from': int.parse(UserDetails.userId.toString()),
-              'to': widget.conversation['user_id'],
-              'text': '',
-              'media': data['data']?['media'] ?? imageFile.path,
-              'sticker': '',
-              'seen': 0,
-              'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-              'message_type': 'media',
-              'type': 'sent',
-            });
-          });
-          _scrollToBottom();
-          if (widget.onMessageSent != null) widget.onMessageSent!();
-        } else {
-          _showError(data['message']?.toString() ?? 'Failed to send image');
-        }
-      } else {
-        _showError('Server error ${response.statusCode}');
-      }
-    } catch (e) {
-      _showError('Failed to send image: $e');
-    } finally {
-      setState(() => _sending = false);
-    }
-  }
-
-  // ---------------- Send Image Message (Web) ----------------
-  Future<void> _sendImageMessageWeb(List<int> bytes, String filename) async {
-    try {
-      setState(() => _sending = true);
-
-      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_media_message');
-
-      var request = http.MultipartRequest('POST', url);
-      request.fields['access_token'] = UserDetails.accessToken;
-      request.fields['to_userid'] = widget.conversation['user_id'].toString();
-      request.fields['hash_id'] = UserDetails.accessToken;
-
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'media_file',
-          bytes,
-          filename: filename,
-        ),
-      );
-      print(request.fields);
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 200) {
-          setState(() {
-            _messages.insert(0, {
+            _messages.add({
               'from': int.parse(UserDetails.userId.toString()),
               'to': widget.conversation['user_id'],
               'text': '',
@@ -879,7 +1055,59 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
-  // ---------------- Send Video Message ----------------
+  // ---------------- Send Image Message (Web) ----------------
+  Future<void> _sendImageMessageWeb(List<int> bytes, String filename) async {
+    try {
+      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_media_message');
+
+      var request = http.MultipartRequest('POST', url);
+      request.fields['access_token'] = UserDetails.accessToken;
+      request.fields['to_userid'] = widget.conversation['user_id'].toString();
+      request.fields['hash_id'] = UserDetails.accessToken;
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'media',
+          bytes,
+          filename: filename,
+        ),
+      );
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 200) {
+          setState(() {
+            _messages.add({
+              'from': int.parse(UserDetails.userId.toString()),
+              'to': widget.conversation['user_id'],
+              'text': '',
+              'media': data['data']?['media'] ?? '',
+              'sticker': '',
+              'seen': 0,
+              'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+              'message_type': 'media',
+              'type': 'sent',
+            });
+          });
+          _scrollToBottom();
+          if (widget.onMessageSent != null) widget.onMessageSent!();
+        } else {
+          _showError(data['message']?.toString() ?? 'Failed to send image');
+        }
+      } else {
+        _showError('Server error ${response.statusCode}');
+      }
+    } catch (e) {
+      _showError('Failed to send image: $e');
+    } finally {
+      setState(() => _sending = false);
+    }
+  }
+
+  // ---------------- Send Video Message (Mobile) ----------------
   Future<void> _sendVideoMessage(File videoFile) async {
     try {
       final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_media_message');
@@ -888,7 +1116,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       request.fields['access_token'] = UserDetails.accessToken;
       request.fields['to_userid'] = widget.conversation['user_id'].toString();
       request.fields['hash_id'] = UserDetails.accessToken;
-      request.fields['message_type'] = 'video';
 
       request.files.add(
         await http.MultipartFile.fromPath(
@@ -904,11 +1131,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         final data = json.decode(response.body);
         if (data['status'] == 200) {
           setState(() {
-            _messages.insert(0, {
+            _messages.add({
               'from': int.parse(UserDetails.userId.toString()),
               'to': widget.conversation['user_id'],
               'text': '',
-              'media': data['data']?['media'] ?? videoFile.path,
+              'media': data['data']?['media'] ?? '',
               'sticker': '',
               'seen': 0,
               'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -931,17 +1158,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  // ---------------- Send Video Message (Web) ----------------
   Future<void> _sendVideoMessageWeb(List<int> bytes, String filename) async {
     try {
-      setState(() => _sending = true);
-
       final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_media_message');
 
       var request = http.MultipartRequest('POST', url);
       request.fields['access_token'] = UserDetails.accessToken;
       request.fields['to_userid'] = widget.conversation['user_id'].toString();
       request.fields['hash_id'] = UserDetails.accessToken;
-      request.fields['message_type'] = 'video';
 
       request.files.add(
         http.MultipartFile.fromBytes(
@@ -958,7 +1183,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         final data = json.decode(response.body);
         if (data['status'] == 200) {
           setState(() {
-            _messages.insert(0, {
+            _messages.add({
               'from': int.parse(UserDetails.userId.toString()),
               'to': widget.conversation['user_id'],
               'text': '',
@@ -1079,7 +1304,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 ? _buildEmptyState()
                 : ListView.builder(
               controller: _scrollController,
-              reverse: true,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
@@ -1291,9 +1515,30 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             child: Row(
               children: [
                 // Media Attachment Button
-                IconButton(
-                  icon: const Icon(Icons.attach_file, color: Colors.grey),
-                  onPressed: _showMediaSelectionSheet,
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.attach_file, color: Colors.grey),
+                      onPressed: _showMediaSelectionSheet,
+                    ),
+                    if (!_isPremiumUser())
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.star,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
 
                 Expanded(
@@ -1332,7 +1577,23 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                             icon: const Icon(Icons.card_giftcard,
                                 color: Colors.grey),
                             onPressed: () async {
-                              final stickers = await _fetchStickers();
+                              // Show loading indicator if stickers are still loading
+                              if (_loadingStickers) {
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                                // Wait for stickers to load
+                                while (_loadingStickers) {
+                                  await Future.delayed(const Duration(milliseconds: 100));
+                                }
+                                Navigator.pop(context); // Hide loading indicator
+                              }
+
+                              // Show stickers bottom sheet
                               showModalBottomSheet(
                                 context: context,
                                 isScrollControlled: true,
@@ -1341,9 +1602,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                                   BorderRadius.vertical(top: Radius.circular(20)),
                                 ),
                                 builder: (_) => StickersBottomSheet(
-                                  stickers: stickers,
+                                  stickers: _stickers,
                                   onStickerSelected: (sticker) {
-                                    // Handle sticker selection
+                                    _sendStickerMessage(sticker);
                                   },
                                 ),
                               );
@@ -1409,6 +1670,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       ],
     );
   }
+
 
   // ---------------- Format Timestamp ----------------
   String _formatTimestamp(dynamic timestamp) {
