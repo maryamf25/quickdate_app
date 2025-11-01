@@ -9,7 +9,9 @@ import 'package:http/http.dart' as http;
 import 'social_login_service.dart';
 import 'LoginActivity.dart';
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final String? prefilledEmail;
+
+  const RegisterScreen({super.key, this.prefilledEmail});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -37,6 +39,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       {'id': '2', 'name': 'Female'},
       {'id': '3', 'name': 'Other'},
     ];
+
+    // Pre-fill email if provided (from WoWonder login redirect)
+    if (widget.prefilledEmail != null && widget.prefilledEmail!.isNotEmpty) {
+      emailController.text = widget.prefilledEmail!;
+      debugPrint('✅ Email pre-filled from WoWonder: ${widget.prefilledEmail}');
+    }
   }
 
   Future<void> registerUser() async {

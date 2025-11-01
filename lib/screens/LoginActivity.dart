@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../utils/user_details.dart';
-import '../utils/app_settings.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -389,7 +388,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Prompt user for Wowonder credentials (username/password)
+  // Prompt user for credentials (will check our database or redirect to registration)
   Future<Map<String, String>?> _promptForWowonderCredentials() async {
     final usernameController = TextEditingController();
     final passwordController = TextEditingController();
@@ -397,26 +396,46 @@ class _LoginScreenState extends State<LoginScreen> {
     return await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('WoWonder Login'),
+        title: const Text('Sign In'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: usernameController, decoration: const InputDecoration(labelText: 'Username or Email')),
-              TextField(controller: passwordController, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+              const Text(
+                'Enter your email and password to login or create a new account.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+              ),
             ],
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancel')),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               final map = <String, String>{};
               map['username'] = usernameController.text.trim();
               map['password'] = passwordController.text;
               Navigator.pop(context, map);
             },
-            child: const Text('Login'),
+            child: const Text('Continue'),
           ),
         ],
       ),
@@ -427,10 +446,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => isLoading = true);
 
     try {
-      // Prompt for WoWonder credentials (username/password). We no longer ask the user for domain.
+      // Prompt for credentials (they'll use WoWonder email/password)
       final creds = await _promptForWowonderCredentials();
       if (creds == null) {
-        _showDialog('Cancelled', 'WoWonder login was cancelled.');
+        setState(() => isLoading = false);
         return;
       }
 
@@ -438,29 +457,73 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = creds['password'] ?? '';
 
       if (username.isEmpty || password.isEmpty) {
-        _showDialog('Error', 'Please enter WoWonder username (or email) and password.');
+        _showDialog('Error', 'Please enter your email and password.');
+        setState(() => isLoading = false);
         return;
       }
 
-      // Debug: print configured domain/appKey
-      debugPrint('🔎 AppSettings.wowonderDomainUri="${AppSettings.wowonderDomainUri}"');
-      debugPrint('🔎 AppSettings.wowonderAppKey="${AppSettings.wowonderAppKey}"');
+      debugPrint('🔍 Checking if user exists in our database...');
 
-      // Use unified WoWonder login method (handles client-side and server-side automatically)
-      final result = await SocialLoginService.signInWithWowonder(
-        username: username,
-        password: password,
-        domain: AppSettings.wowonderDomainUri,
-        appKey: AppSettings.wowonderAppKey,
+      // Try to login with our database first
+      final body = {
+        'username': username,
+        'password': password,
+        'mobile_device_id': UserDetails.deviceId,
+      };
+
+      final response = await http.post(
+        Uri.parse('${SocialLoginService.baseUrl}/users/login'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body,
       );
 
-      if (result != null) {
-        await _handleLoginSuccess(result, result['email'] ?? username);
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['data'] != null) {
+        // ✅ User exists in our database - login directly
+        debugPrint('✅ User found in database - logging in');
+        await _handleLoginSuccess(data['data'], username);
       } else {
-        _showDialog('Error', 'WoWonder login failed. Please check credentials or server configuration.');
+        // ❌ User doesn't exist - redirect to registration with pre-filled email
+        debugPrint('ℹ️ User not found - redirecting to registration');
+        setState(() => isLoading = false);
+
+        if (!mounted) return;
+
+        // Show info dialog first
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Account Not Found'),
+            content: Text(
+              'No account found with these credentials.\n\n'
+              'Would you like to create a new account with email:\n$username?'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Navigate to registration with pre-filled email
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RegisterScreen(prefilledEmail: username),
+                    ),
+                  );
+                },
+                child: const Text('Create Account'),
+              ),
+            ],
+          ),
+        );
       }
     } catch (e) {
-      _showDialog('Error', 'WoWonder login error: $e');
+      debugPrint('❌ Error: $e');
+      _showDialog('Error', 'Failed to check credentials: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
