@@ -1,12 +1,39 @@
+// credits_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for SystemUiOverlayStyle
+import 'package:flutter/services.dart';
+import 'mainprofile.dart';
+import '../services/razorpay_payment_service.dart'; // Import Razorpay service
+
+// Import the reusable payment method bottom sheet
+import '../widgets/payment_method_bottom_sheet.dart'; // Adjust path as needed
 
 void main() {
   runApp(const CreditsApp());
 }
 
-class CreditsApp extends StatelessWidget {
+class CreditsApp extends StatefulWidget {
   const CreditsApp({super.key});
+
+  @override
+  State<CreditsApp> createState() => _CreditsAppState();
+}
+
+class _CreditsAppState extends State<CreditsApp> {
+  late final RazorpayPaymentService _razorpayService;
+
+  @override
+  void initState() {
+    super.initState();
+    print('CreditsApp: Initializing RazorpayPaymentService in root app.');
+    _razorpayService = RazorpayPaymentService();
+  }
+
+  @override
+  void dispose() {
+    print('CreditsApp: Disposing RazorpayPaymentService in root app.');
+    _razorpayService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,13 +43,14 @@ class CreditsApp extends StatelessWidget {
         primarySwatch: Colors.pink,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const CreditsPage(),
+      home: CreditsPage(razorpayService: _razorpayService),
     );
   }
 }
-
 class CreditsPage extends StatefulWidget {
-  const CreditsPage({super.key});
+  final RazorpayPaymentService razorpayService; // Accept Razorpay service
+
+  const CreditsPage({super.key, required this.razorpayService});
 
   @override
   State<CreditsPage> createState() => _CreditsPageState();
@@ -33,34 +61,13 @@ class _CreditsPageState extends State<CreditsPage> {
   int _currentPage = 0;
 
   final List<Map<String, dynamic>> _carouselItems = [
-    {
-      'icon': Icons.rocket_launch,
-      'text': 'Put yourself First in Search', // This is from your first attached image
-    },
-    {
-      'icon': Icons.card_giftcard, // Changed icon to be more generic for "Stickers"
-      'text': 'Get additional Stickers', // This is from your second attached image
-    },
-    {
-      'icon': Icons.favorite, // Changed icon to a heart for "friendship"
-      'text': 'Double your chances for a friendship', // This is from your third attached image
-    },
-    {
-      'icon': Icons.rocket_launch,
-      'text': 'Boost your profile',
-    },
-    {
-      'icon': Icons.chat_bubble_outline,
-      'text': 'Highlight your messages',
-    },
-    {
-      'icon': Icons.card_giftcard,
-      'text': 'Send a gift',
-    },
-    {
-      'icon': Icons.track_changes_outlined,
-      'text': 'Get seen 100x in Discover',
-    },
+    {'icon': Icons.rocket_launch, 'text': 'Put yourself First in Search'},
+    {'icon': Icons.card_giftcard, 'text': 'Get additional Stickers'},
+    {'icon': Icons.favorite, 'text': 'Double your chances for a friendship'},
+    {'icon': Icons.rocket_launch, 'text': 'Boost your profile'},
+    {'icon': Icons.chat_bubble_outline, 'text': 'Highlight your messages'},
+    {'icon': Icons.card_giftcard, 'text': 'Send a gift'},
+    {'icon': Icons.track_changes_outlined, 'text': 'Get seen 100x in Discover'},
   ];
 
   @override
@@ -83,7 +90,7 @@ class _CreditsPageState extends State<CreditsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 0, // Hide default AppBar
+        toolbarHeight: 0, // hides system app bar
         backgroundColor: Colors.white,
         elevation: 0,
         systemOverlayStyle: const SystemUiOverlayStyle(
@@ -99,8 +106,6 @@ class _CreditsPageState extends State<CreditsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatusBar(),
-                const SizedBox(height: 20),
                 const Text(
                   'Credits',
                   style: TextStyle(
@@ -115,11 +120,11 @@ class _CreditsPageState extends State<CreditsPage> {
                   children: [
                     _buildCreditBalanceCard(),
                     Positioned(
-                      top: 100, // Adjust this value to position the card correctly
+                      top: 100,
                       left: 0,
                       right: 0,
                       child: SizedBox(
-                        height: 100, // Height of the boost profile card
+                        height: 100,
                         child: PageView.builder(
                           controller: _pageController,
                           itemCount: _carouselItems.length,
@@ -146,31 +151,43 @@ class _CreditsPageState extends State<CreditsPage> {
                   ),
                 ),
                 const SizedBox(height: 15),
+                // Modified to call _showPaymentMethods
                 _buildCreditOption(
+                  context, // Pass context
                   'Bag of Credits',
                   '1000',
                   '\$ 50',
-                  const Icon(Icons.monetization_on, color: Colors.orange, size: 40), // Placeholder image
+                  5000, // Amount in cents/smallest unit for payment (50 * 100)
+                  const Icon(Icons.monetization_on, color: Colors.orange, size: 40),
                 ),
                 const SizedBox(height: 15),
+                // Modified to call _showPaymentMethods
                 _buildCreditOption(
+                  context, // Pass context
                   'Box of Credits',
                   '5000',
                   '\$ 100',
-                  const Icon(Icons.card_giftcard_outlined, color: Colors.purple, size: 40), // Placeholder image
+                  10000, // Amount in cents/smallest unit for payment (100 * 100)
+                  const Icon(Icons.card_giftcard_outlined, color: Colors.purple, size: 40),
                 ),
                 const SizedBox(height: 15),
+                // Modified to call _showPaymentMethods
                 _buildCreditOption(
+                  context, // Pass context
                   'Chest of Credits',
                   '10000',
                   '\$ 150',
-                  const Icon(Icons.savings, color: Colors.brown, size: 40), // Placeholder image
+                  15000, // Amount in cents/smallest unit for payment (150 * 100)
+                  const Icon(Icons.savings, color: Colors.brown, size: 40),
                 ),
                 const SizedBox(height: 30),
                 Center(
                   child: TextButton(
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MainProfileScreen()),
+                      );
                     },
                     child: const Text(
                       'Skip Credits',
@@ -188,64 +205,16 @@ class _CreditsPageState extends State<CreditsPage> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.white,
-        elevation: 0,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
-              IconButton(icon: const Icon(Icons.circle_outlined), onPressed: () {}),
-              IconButton(icon: const Icon(Icons.arrow_back_ios), onPressed: () {}),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            '3:14',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-          Row(
-            children: [
-              const Icon(Icons.wifi, size: 18),
-              const Icon(Icons.signal_cellular_alt, size: 18),
-              const SizedBox(width: 4),
-              Text(
-                '51%',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const Icon(Icons.battery_full, size: 18),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildCreditBalanceCard() {
     return Container(
       width: double.infinity,
-      height: 180, // Height of the card, enough to show the content
+      height: 180,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFE91E63), Color(0xFF9C27B0)], // Pink and Purple
+          colors: [Color(0xFFE91E63), Color(0xFF9C27B0)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -323,19 +292,17 @@ class _CreditsPageState extends State<CreditsPage> {
                 borderRadius: BorderRadius.circular(10),
               ),
               padding: const EdgeInsets.all(10),
-              child: Icon(
-                icon,
-                color: Colors.pink,
-                size: 30,
-              ),
+              child: Icon(icon, color: Colors.pink, size: 30),
             ),
             const SizedBox(width: 15),
-            Text(
-              text,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: Colors.black,
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
               ),
             ),
           ],
@@ -355,73 +322,110 @@ class _CreditsPageState extends State<CreditsPage> {
           margin: const EdgeInsets.symmetric(horizontal: 4.0),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: _currentPage == index ? Colors.grey : Colors.grey.withOpacity(0.3),
+            color: _currentPage == index
+                ? Colors.grey
+                : Colors.grey.withOpacity(0.3),
           ),
         ),
       ),
     );
   }
 
+  // Modified _buildCreditOption to trigger the bottom sheet
   Widget _buildCreditOption(
-      String title, String subtitle, String price, Widget iconWidget) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
+      BuildContext context, // Added context
+      String title,
+      String subtitle,
+      String priceDisplay,
+      int priceAmount, // Amount in smallest unit for payment
+      Widget iconWidget) {
+    return GestureDetector(
+      onTap: () {
+        print(
+            'CreditsPage: Credit option "$title" tapped. Price: $priceDisplay, Amount: $priceAmount');
+        _showPaymentMethods(context, title, priceDisplay, priceAmount);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
               color: Colors.grey.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              spreadRadius: 1,
+              blurRadius: 5,
+              offset: const Offset(0, 3),
             ),
-            child: iconWidget,
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+          ],
+        ),
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: iconWidget,
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
+                  const SizedBox(height: 5),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Text(
-            price,
-            style: const TextStyle(
-              color: Colors.green, // Assuming green for price based on image
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+            Text(
+              priceDisplay,
+              style: const TextStyle(
+                color: Colors.green,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  // Function to show the payment methods bottom sheet
+  void _showPaymentMethods(BuildContext context, String planName,
+      String priceDisplay, int priceAmount) {
+    print(
+        'CreditsPage: _showPaymentMethods called for item: $planName, price: $priceDisplay, amount: $priceAmount');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) =>
+          PaymentMethodBottomSheet(
+            planName: planName, // Use 'planName' to represent the credit pack name
+            priceDisplay: priceDisplay,
+            priceAmount: priceAmount,
+            razorpayService: widget.razorpayService, // Pass the service from the widget
+          ),
     );
   }
 }
@@ -435,7 +439,6 @@ class _CreditCardBackgroundPainter extends CustomPainter {
 
     final path = Path();
 
-    // Wavy top-left element
     path.moveTo(0, size.height * 0.1);
     path.quadraticBezierTo(
         size.width * 0.2, size.height * 0.05, size.width * 0.4, size.height * 0.15);
@@ -446,7 +449,6 @@ class _CreditCardBackgroundPainter extends CustomPainter {
     path.close();
     canvas.drawPath(path, paint);
 
-    // Wavy bottom-right element
     path.reset();
     path.moveTo(size.width, size.height * 0.9);
     path.quadraticBezierTo(
@@ -458,14 +460,11 @@ class _CreditCardBackgroundPainter extends CustomPainter {
     path.close();
     canvas.drawPath(path, paint);
 
-    // Additional circles/patterns to mimic the background
     canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.3), 30, paint);
     canvas.drawCircle(Offset(size.width * 0.1, size.height * 0.7), 20, paint);
     canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.6), 40, paint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

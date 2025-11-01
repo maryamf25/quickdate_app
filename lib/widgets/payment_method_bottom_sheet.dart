@@ -1,7 +1,9 @@
-// upgrade_to_premium_screen.dart
+// payment_method_bottom_sheet.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http; // added for profile refresh
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 import '../services/razorpay_payment_service.dart';
 import '../services/init_cashfree_payment.dart';
 import '../services/paystack_payment_service.dart';
@@ -9,142 +11,98 @@ import '../services/securionpay_payment_service.dart';
 import '../services/iyzipay_payment_service.dart';
 import '../services/aamarpay_payment_service.dart';
 import '../services/flutterwave_payment_service.dart';
-import 'social_login_service.dart';
-import 'card_entry_page.dart';
-import 'authorize_token_page.dart';
-import 'dart:convert';
-import 'mainprofile.dart';
-void main() {
-  runApp(const PremiumUpgradeApp());
-}
+import '../screens/social_login_service.dart';
+import '../screens/card_entry_page.dart';
+import '../screens/authorize_token_page.dart';
 
-class PremiumUpgradeApp extends StatefulWidget {
-  const PremiumUpgradeApp({super.key});
+class PaymentMethodBottomSheet extends StatelessWidget {
+  final String planName;
+  final String priceDisplay;
+  final int priceAmount;
+  final RazorpayPaymentService razorpayService; // Pass the service
 
-  @override
-  State<PremiumUpgradeApp> createState() => _PremiumUpgradeAppState();
-}
+  const PaymentMethodBottomSheet({
+    super.key,
+    required this.planName,
+    required this.priceDisplay,
+    required this.priceAmount,
+    required this.razorpayService,
+  });
 
-class _PremiumUpgradeAppState extends State<PremiumUpgradeApp> {
-  late final RazorpayPaymentService _razorpayService;
-
-  @override
-  void initState() {
-    super.initState();
-    print('PremiumUpgradeApp: Initializing RazorpayPaymentService in root app.');
-    _razorpayService = RazorpayPaymentService();
-  }
-
-  @override
-  void dispose() {
-    print('PremiumUpgradeApp: Disposing RazorpayPaymentService in root app.');
-    _razorpayService.dispose();
-    super.dispose();
-  }
+  final paymentMethods = const [
+    {'title': 'RazorPay', 'image': 'assets/images/icon.png'},
+    {'title': 'Cashfree', 'image': 'assets/images/icon.png'},
+    {'title': 'Paystack', 'image': 'assets/images/icon.png'},
+    {'title': 'SecurionPay', 'image': 'assets/images/icon.png'},
+    {'title': 'AuthorizeNet', 'image': 'assets/images/icon.png'},
+    {'title': 'AamarPay', 'image': 'assets/images/icon.png'},
+    {'title': 'FlutterWave', 'image': 'assets/images/icon.png'},
+    {'title': 'IyziPay', 'image': 'assets/images/icon.png'}, // Added IyziPay
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Upgrade To Premium',
-      theme: ThemeData(
-        primarySwatch: Colors.pink,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: PremiumUpgradePage(razorpayService: _razorpayService),
-    );
-  }
-}
-
-class PremiumUpgradePage extends StatelessWidget {
-  final RazorpayPaymentService razorpayService;
-
-  const PremiumUpgradePage({super.key, required this.razorpayService});
-
-  @override
-  Widget build(BuildContext context) {
-    // Full-screen immersive mode
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    print('PremiumUpgradePage: Building UI.');
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20),
-              const Text(
-                'Upgrade To Premium',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        height: 4.0,
+                        width: 40.0,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2.0),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Select Your Payment Method',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Activating Premium will help you meet more\npeople, faster.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 30),
-              const Text(
-                'Why Choose Premium Membership?',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 15),
-              _buildPremiumFeature(
-                  Icons.sticky_note_2_outlined, 'See more stickers on chat'),
-              _buildPremiumFeature(Icons.star_outline, 'Show in Premium bar'),
-              _buildPremiumFeature(Icons.notifications_active_outlined,
-                  'See likes notifications'),
-              _buildPremiumFeature(
-                  Icons.percent, 'Get discount when buy boost me'),
-              _buildPremiumFeature(
-                  Icons.format_list_numbered, 'Display first in find matches'),
-              _buildPremiumFeature(
-                  Icons.people_alt_outlined, 'Display on top in random users'),
-              _buildPremiumFeature(Icons.videocam_outlined,
-                  'Create unlimited video and audio calls'),
-              _buildPremiumFeature(Icons.location_on_outlined,
-                  'Find potential matches by country'),
-              const SizedBox(height: 30),
-              _buildSubscriptionOption(context, 'Weekly', 'Normal', '8\$', 800,
-                  Colors.deepOrangeAccent),
-              const SizedBox(height: 15),
-              _buildSubscriptionOption(
-                  context, 'Monthly', 'Save 51%', '25\$', 2500, Colors.purple),
-              const SizedBox(height: 15),
-              _buildSubscriptionOption(
-                  context, 'Yearly', 'Save 90%', '280\$', 28000, Colors.indigo),
-              const SizedBox(height: 15),
-              _buildSubscriptionOption(
-                  context, 'Lifetime', 'Pay once, access forever', '500\$',
-                  50000, Colors.amber),
-              const SizedBox(height: 30),
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    print('PremiumUpgradePage: Skip Premium tapped.');
-                    Navigator.push(
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: paymentMethods.length,
+                  itemBuilder: (context, index) {
+                    final method = paymentMethods[index];
+                    return _buildPaymentMethodTile(
                       context,
-                      MaterialPageRoute(builder: (_) => const MainProfileScreen()),
+                      method['title']!,
+                      method['image']!,
+                          () {
+                        Navigator.pop(context); // Close bottom sheet immediately
+                        _handlePaymentMethod(
+                          context: context,
+                          method: method['title']!,
+                          planName: planName,
+                          priceDisplay: priceDisplay,
+                          priceAmount: priceAmount,
+                        );
+                      },
                     );
                   },
-                  child: const Text(
-                    'Skip Premium',
-                    style: TextStyle(fontSize: 18,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w600),
-                  ),
                 ),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -152,146 +110,6 @@ class PremiumUpgradePage extends StatelessWidget {
     );
   }
 
-  // PREMIUM FEATURES
-  Widget _buildPremiumFeature(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.pink, size: 28),
-          const SizedBox(width: 15),
-          Text(text, style: const TextStyle(fontSize: 16, color: Colors.black)),
-        ],
-      ),
-    );
-  }
-
-  // SUBSCRIPTION OPTION
-  Widget _buildSubscriptionOption(BuildContext context, String title,
-      String subtitle, String priceDisplay, int priceAmount, Color color) {
-    return GestureDetector(
-      onTap: () {
-        print(
-            'PremiumUpgradePage: Subscription option "$title" tapped. Price: $priceDisplay, Amount: $priceAmount');
-        _showPaymentMethods(context, title, priceDisplay, priceAmount);
-      },
-      child: Container(
-        decoration: BoxDecoration(
-            color: color, borderRadius: BorderRadius.circular(15)),
-        padding: const EdgeInsets.all(20.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold)),
-              const SizedBox(height: 5),
-              Text(subtitle,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14)),
-            ]),
-            Text(priceDisplay, style: const TextStyle(color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showPaymentMethods(BuildContext context, String planName,
-      String priceDisplay, int priceAmount) {
-    print(
-        'PremiumUpgradePage: _showPaymentMethods called for plan: $planName, price: $priceDisplay, amount: $priceAmount');
-    final paymentMethods = [
-      {'title': 'RazorPay', 'image': 'assets/images/icon.png'},
-      {'title': 'Cashfree', 'image': 'assets/images/icon.png'},
-      {'title': 'Paystack', 'image': 'assets/images/icon.png'},
-      {'title': 'SecurionPay', 'image': 'assets/images/icon.png'},
-      {'title': 'AuthorizeNet', 'image': 'assets/images/icon.png'},
-      {'title': 'AamarPay', 'image': 'assets/images/icon.png'},
-      {'title': 'FlutterWave', 'image': 'assets/images/icon.png'},
-    ];
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) =>
-          SafeArea(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            height: 4.0,
-                            width: 40.0,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(2.0),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Select Your Payment Method',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: SizedBox(
-                        height: paymentMethods.length * 70.0,
-                        child: ListView.builder(
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: paymentMethods.length,
-                          itemBuilder: (context, index) {
-                            final method = paymentMethods[index];
-                            return _buildPaymentMethodTile(
-                              context,
-                              method['title']!,
-                              method['image']!,
-                                  () {
-                                print(
-                                    'PremiumUpgradePage: Payment method "${method['title']}" tapped.');
-                                Navigator.pop(context); // Close bottom sheet
-                                _handlePaymentMethod(
-                                  context: context,
-                                  method: method['title']!,
-                                  planName: planName,
-                                  priceDisplay: priceDisplay,
-                                  priceAmount: priceAmount,
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-    );
-  }
-
-  // PAYMENT METHOD TILE
   Widget _buildPaymentMethodTile(BuildContext context, String title,
       String imagePath, VoidCallback onTap) {
     return Column(
@@ -303,7 +121,8 @@ class PremiumUpgradePage extends StatelessWidget {
               child: Image.asset(
                 imagePath,
                 fit: BoxFit.contain,
-                errorBuilder: (ctx, error, stack) => const Icon(Icons.payment, size: 28, color: Colors.grey),
+                errorBuilder: (ctx, error, stack) =>
+                const Icon(Icons.payment, size: 28, color: Colors.grey),
               )),
           title: Text(title, style: const TextStyle(fontSize: 16,
               fontWeight: FontWeight.w500,
@@ -317,7 +136,32 @@ class PremiumUpgradePage extends StatelessWidget {
     );
   }
 
-// CASHFREE DIALOG
+
+  // TEXT INPUT HELPER - Moved here for Cashfree Dialog
+  Widget _buildInputField(IconData icon, TextEditingController controller,
+      String hint) {
+    return Row(
+      children: [
+        SizedBox(width: 40, child: Icon(icon, size: 24)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: hint,
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 12),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  // CASHFREE DIALOG - Moved here
   void _showCashfreeDialog(BuildContext context, {
     String? name,
     String? email,
@@ -395,30 +239,8 @@ class PremiumUpgradePage extends StatelessWidget {
     );
   }
 
-  // TEXT INPUT HELPER
-  Widget _buildInputField(IconData icon, TextEditingController controller,
-      String hint) {
-    return Row(
-      children: [
-        Container(width: 40, child: Icon(icon, size: 24)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: hint,
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 12),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
-  // COMPREHENSIVE PAYMENT METHOD HANDLER
+  // COMPREHENSIVE PAYMENT METHOD HANDLER - Moved here
   void _handlePaymentMethod({
     required BuildContext context,
     required String method,
@@ -430,12 +252,12 @@ class PremiumUpgradePage extends StatelessWidget {
 
     switch (method) {
       case 'RazorPay':
-        print('PremiumUpgradePage: Handling RazorPay payment');
+        print('PaymentMethodBottomSheet: Handling RazorPay payment');
         razorpayService.openCheckout(context, priceAmount, planName);
         break;
 
       case 'Cashfree':
-        print('PremiumUpgradePage: Handling Cashfree payment');
+        print('PaymentMethodBottomSheet: Handling Cashfree payment');
         _showCashfreeDialog(
           context,
           name: "Test User",
@@ -447,37 +269,37 @@ class PremiumUpgradePage extends StatelessWidget {
         break;
 
       case 'Paystack':
-        print('PremiumUpgradePage: Handling Paystack payment');
+        print('PaymentMethodBottomSheet: Handling Paystack payment');
         await _handlePaystackPayment(
             context, priceAmount, planName, backendUrl);
         break;
 
       case 'SecurionPay':
-        print('PremiumUpgradePage: Handling SecurionPay payment');
+        print('PaymentMethodBottomSheet: Handling SecurionPay payment');
         await _handleSecurionPayPayment(
             context, priceAmount, planName, backendUrl);
         break;
 
       case 'AuthorizeNet':
-        print('PremiumUpgradePage: Handling Authorize.Net payment');
+        print('PaymentMethodBottomSheet: Handling Authorize.Net payment');
         // Determine type based on selected plan - here subscription options map to 'go_pro'
         final String payType = 'go_pro';
         await _handleAuthorizeNetPayment(context, priceAmount, planName, backendUrl, type: payType);
         break;
 
       case 'IyziPay':
-        print('PremiumUpgradePage: Handling IyziPay payment');
+        print('PaymentMethodBottomSheet: Handling IyziPay payment');
         await _handleIyziPayPayment(context, priceAmount, planName, backendUrl);
         break;
 
       case 'AamarPay':
-        print('PremiumUpgradePage: Handling AamarPay payment');
+        print('PaymentMethodBottomSheet: Handling AamarPay payment');
         await _handleAamarPayPayment(
             context, priceAmount, planName, backendUrl);
         break;
 
       case 'FlutterWave':
-        print('PremiumUpgradePage: Handling FlutterWave payment');
+        print('PaymentMethodBottomSheet: Handling FlutterWave payment');
         await _handleFlutterwavePayment(
             context, priceAmount, planName, backendUrl);
         break;
@@ -489,7 +311,7 @@ class PremiumUpgradePage extends StatelessWidget {
     }
   }
 
-  // PAYSTACK PAYMENT HANDLER
+  // PAYSTACK PAYMENT HANDLER - Moved here
   Future<void> _handlePaystackPayment(BuildContext context,
       int priceAmount,
       String planName,
@@ -510,7 +332,7 @@ class PremiumUpgradePage extends StatelessWidget {
           reference: response['data']['reference'],
           planName: planName,
           onSuccess: () {
-            print('PremiumUpgradePage: Paystack payment successful');
+            print('PaymentMethodBottomSheet: Paystack payment successful');
           },
           onError: (error) {
             if (context.mounted) {
@@ -523,7 +345,7 @@ class PremiumUpgradePage extends StatelessWidget {
         );
       }
     } catch (e) {
-      print('PremiumUpgradePage ERROR: Paystack error: $e');
+      print('PaymentMethodBottomSheet ERROR: Paystack error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -532,7 +354,7 @@ class PremiumUpgradePage extends StatelessWidget {
     }
   }
 
-  // SECURIONPAY PAYMENT HANDLER
+  // SECURIONPAY PAYMENT HANDLER - Moved here
   Future<void> _handleSecurionPayPayment(BuildContext context,
       int priceAmount,
       String planName,
@@ -554,7 +376,7 @@ class PremiumUpgradePage extends StatelessWidget {
           chargeId: response['charge_id'],
           planName: planName,
           onSuccess: () {
-            print('PremiumUpgradePage: SecurionPay payment successful');
+            print('PaymentMethodBottomSheet: SecurionPay payment successful');
           },
           onError: (error) {
             if (context.mounted) {
@@ -567,7 +389,7 @@ class PremiumUpgradePage extends StatelessWidget {
         );
       }
     } catch (e) {
-      print('PremiumUpgradePage ERROR: SecurionPay error: $e');
+      print('PaymentMethodBottomSheet ERROR: SecurionPay error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -576,7 +398,7 @@ class PremiumUpgradePage extends StatelessWidget {
     }
   }
 
-  // AUTHORIZE.NET PAYMENT HANDLER
+  // AUTHORIZE.NET PAYMENT HANDLER - Moved here
   Future<void> _handleAuthorizeNetPayment(BuildContext context,
       int priceAmount,
       String planName,
@@ -689,10 +511,10 @@ class PremiumUpgradePage extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Authorize.Net error: $e'), backgroundColor: Colors.red));
       }
     }
-
   }
 
-  // IZIPAY PAYMENT HANDLER
+
+  // IYZIPAY PAYMENT HANDLER - Moved here
   Future<void> _handleIyziPayPayment(BuildContext context,
       int priceAmount,
       String planName,
@@ -718,7 +540,7 @@ class PremiumUpgradePage extends StatelessWidget {
           paymentId: response['payment_id'],
           planName: planName,
           onSuccess: () {
-            print('PremiumUpgradePage: IyziPay payment successful');
+            print('PaymentMethodBottomSheet: IyziPay payment successful');
           },
           onError: (error) {
             if (context.mounted) {
@@ -731,7 +553,7 @@ class PremiumUpgradePage extends StatelessWidget {
         );
       }
     } catch (e) {
-      print('PremiumUpgradePage ERROR: IyziPay error: $e');
+      print('PaymentMethodBottomSheet ERROR: IyziPay error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -740,7 +562,7 @@ class PremiumUpgradePage extends StatelessWidget {
     }
   }
 
-  // AAMARPAY PAYMENT HANDLER
+  // AAMARPAY PAYMENT HANDLER - Moved here
   Future<void> _handleAamarPayPayment(BuildContext context,
       int priceAmount,
       String planName,
@@ -748,7 +570,6 @@ class PremiumUpgradePage extends StatelessWidget {
     try {
       final service = AamarPayPaymentService(backendBaseUrl: backendUrl);
 
-      // Retrieve stored auth token (if user logged in) to include with backend call
       String? token;
       try {
         token = await SocialLoginService.getAccessToken();
@@ -757,7 +578,7 @@ class PremiumUpgradePage extends StatelessWidget {
       }
 
       final resp = await service.initializePayment(
-        type: 'go_pro', // assuming upgrade to premium is go_pro; change to 'credit' when buying credits
+        type: 'go_pro',
         price: priceAmount.toString(),
         customerName: 'Test User',
         customerEmail: 'test@example.com',
@@ -775,7 +596,6 @@ class PremiumUpgradePage extends StatelessWidget {
         return;
       }
 
-      // Service may return structured error object when backend returned HTML or unparsable JSON
       if (resp['error'] == true) {
         final msg = resp['message'] ?? 'Payment initialization error';
         final raw = (resp['raw'] ?? '').toString();
@@ -784,7 +604,6 @@ class PremiumUpgradePage extends StatelessWidget {
             SnackBar(content: Text('Aamarpay init error: $msg'), backgroundColor: Colors.red),
           );
 
-          // Show dialog with trimmed raw snippet so developer can inspect server response
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -801,7 +620,6 @@ class PremiumUpgradePage extends StatelessWidget {
         return;
       }
 
-      // Backend returns { status: 200, url: '<hosted-url>' }
       final paymentUrl = resp['url'] ?? resp['payment_url'] ?? resp['data']?['url'];
 
       if (paymentUrl == null || paymentUrl.toString().isEmpty) {
@@ -822,15 +640,13 @@ class PremiumUpgradePage extends StatelessWidget {
         planName: planName,
         authToken: token,
         onSuccess: () async {
-          print('PremiumUpgradePage: AamarPay payment successful');
-          // Refresh user state - try to call a central service or provider. If none exists, show a success message.
+          print('PaymentMethodBottomSheet: AamarPay payment successful');
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Payment completed. Refreshing profile...'), backgroundColor: Colors.green),
             );
           }
 
-          // Inline profile refresh to avoid referencing a possibly-missing helper.
           try {
             final accessToken = await SocialLoginService.getAccessToken();
             final userData = await SocialLoginService.getUserData();
@@ -876,7 +692,7 @@ class PremiumUpgradePage extends StatelessWidget {
         },
       );
     } catch (e) {
-      print('PremiumUpgradePage ERROR: AamarPay error: $e');
+      print('PaymentMethodBottomSheet ERROR: AamarPay error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -885,7 +701,7 @@ class PremiumUpgradePage extends StatelessWidget {
     }
   }
 
-  // FLUTTERWAVE PAYMENT HANDLER
+  // FLUTTERWAVE PAYMENT HANDLER - Moved here
   Future<void> _handleFlutterwavePayment(BuildContext context,
       int priceAmount,
       String planName,
@@ -893,7 +709,6 @@ class PremiumUpgradePage extends StatelessWidget {
     try {
       final service = FlutterwavePaymentService(backendBaseUrl: backendUrl);
 
-      // Retrieve stored auth token (if user logged in)
       final token = await SocialLoginService.getAccessToken();
       if (token == null || token.isEmpty) {
         if (context.mounted) {
@@ -907,13 +722,11 @@ class PremiumUpgradePage extends StatelessWidget {
         return;
       }
 
-      // Open card entry page to collect card details from the user
       if (!context.mounted) return;
       final cardData = await Navigator.of(context).push<Map<String, String?>>(MaterialPageRoute(
         builder: (_) => CardEntryPage(planName: planName, amount: priceAmount),
       ));
 
-      // If user cancelled card entry, abort
       if (cardData == null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -935,11 +748,9 @@ class PremiumUpgradePage extends StatelessWidget {
         cardData: cardData.cast<String,String>(),
       );
 
-      // If response is null, the service already logged details (status/content-type/body).
-      // Show a helpful message to the user and developer so it's obvious what went wrong.
       if (response == null) {
         print(
-            'PremiumUpgradePage ERROR: Flutterwave initialize returned null. See FlutterwavePaymentService logs for raw response (HTML/404/etc).');
+            'PaymentMethodBottomSheet ERROR: Flutterwave initialize returned null. See FlutterwavePaymentService logs for raw response (HTML/404/etc).');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -960,7 +771,7 @@ class PremiumUpgradePage extends StatelessWidget {
           transactionReference: response['data']['tx_ref'],
           planName: planName,
           onSuccess: () {
-            print('PremiumUpgradePage: Flutterwave payment successful');
+            print('PaymentMethodBottomSheet: Flutterwave payment successful');
           },
           onError: (error) {
             if (context.mounted) {
@@ -973,7 +784,7 @@ class PremiumUpgradePage extends StatelessWidget {
         );
       } else {
         print(
-            'PremiumUpgradePage ERROR: Flutterwave initialize returned unexpected data: $response');
+            'PaymentMethodBottomSheet ERROR: Flutterwave initialize returned unexpected data: $response');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -985,7 +796,7 @@ class PremiumUpgradePage extends StatelessWidget {
         }
       }
     } catch (e) {
-      print('PremiumUpgradePage ERROR: Flutterwave error: $e');
+      print('PaymentMethodBottomSheet ERROR: Flutterwave error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),

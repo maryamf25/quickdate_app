@@ -249,4 +249,45 @@ class ApiService {
       'phone_number': userData['phone_number'],
     });
   }
+
+  /// Fetch list of users who visited the authenticated user's profile
+  static Future<List<Map<String, dynamic>>> getProfileVisits({
+    required String accessToken,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final Uri url = Uri.parse('${ApiService.baseUrl}/users/list_visits');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {
+          'access_token': accessToken,
+          'limit': limit.toString(),
+          'offset': offset.toString(),
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['code'] == 200 && data['data'] != null) {
+          final List<dynamic> visits = data['data'];
+          return visits.map((e) => Map<String, dynamic>.from(e)).toList();
+        } else {
+          throw Exception('Unexpected API response: ${response.body}');
+        }
+      } else if (response.statusCode == 400) {
+        final error = jsonDecode(response.body);
+        throw Exception('Bad Request: ${error['errors']?['error_text'] ?? 'Unknown error'}');
+      } else {
+        throw Exception('Failed to fetch visits (Status: ${response.statusCode})');
+      }
+    } catch (e) {
+      throw Exception('Error fetching profile visits: $e');
+    }
+  }
 }

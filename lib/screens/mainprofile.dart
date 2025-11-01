@@ -12,6 +12,7 @@ import 'home_screen.dart';
 import 'upgrade_to_premium_screen.dart';
 import '../services/razorpay_payment_service.dart';
 import 'buy_credits.dart';
+import 'profile_visits_screen.dart';
 
 class MainProfileScreen extends StatefulWidget {
   const MainProfileScreen({super.key});
@@ -99,116 +100,185 @@ class _MainProfileScreenState extends State<MainProfileScreen> {
               style: const TextStyle(color: Colors.grey, fontSize: 14),
             ),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            Center(
+              child: SizedBox(
+                width: 150, // Adjust width as needed
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.pink.shade50, // lighter pink background
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0, // optional, remove shadow
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.edit, color: Colors.pink), // pink icon
+                  label: const Text(
+                    'Edit Profile',
+                    style: TextStyle(color: Colors.pink), // pink text
+                  ),
                 ),
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-                );
-              },
-              icon: const Icon(Icons.edit),
-              label: const Text('Edit Profile'),
             ),
+
             const SizedBox(height: 30),
-            const Divider(thickness: 1),
-            const SizedBox(height: 10),
-            _buildProfileActionButton(
-              context,
-              Icons.favorite,
-              'Liked Users',
-              Colors.redAccent,
-              onPressedOverride: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const UsersYouLikedScreen()),
-                );
-              },
-            ),
-            _buildProfileActionButton(
-              context,
-              Icons.people,
-              'Friends',
-              Colors.green,
-              onPressedOverride: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FriendsScreen()),
-                );
-              },
-            ),
-            _buildProfileActionButton(
-              context,
-              Icons.thumb_down_alt_rounded,
-              'Disliked Users',
-              Colors.blueGrey,
-              onPressedOverride: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const UsersYouDislikedScreen()),
-                );
-              },
-            ),
-            _buildProfileActionButton(
-              context,
-              Icons.person_add,
-              'Invite Friends',
-              Colors.purple,
-              onPressedOverride: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => InviteFriendsScreen(
-                      profileLink: 'https://yourapp.com/profile/${UserDetails.userId}',
-                    ),
+            // Likes / Visits / Share row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PremiumUpgradeApp()),
+                    );
+                  },
+                  child: Row(
+                    children: const [
+                      Icon(Icons.favorite_border, color: Colors.black, size: 20),
+                      SizedBox(width: 4),
+                      Text(
+                        'Likes', // replace with dynamic count
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-            _buildProfileActionButton(
-              context,
-              Icons.article,
-              'Blogs',
-              Colors.purple,
-              onPressedOverride: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => BlogsScreen(accessToken: UserDetails.accessToken),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProfileVisitsPage(accessToken: UserDetails.accessToken),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    children: const [
+                      Icon(Icons.visibility, color: Colors.black, size: 20),
+                      SizedBox(width: 4),
+                      Text(
+                        'Visits', // replace with dynamic count
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-            _buildProfileActionButton(
-              context,
-              Icons.star,
-              'Favorites',
-              Colors.orange,
-              onPressedOverride: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => FavoritesGridScreen(accessToken: UserDetails.accessToken),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    // Implement share functionality
+                  },
+                  child: Row(
+                    children: const [
+                      Icon(Icons.share, color: Colors.black, size: 20),
+                      SizedBox(width: 4),
+                      Text(
+                        'Share',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ],
             ),
-            _buildProfileActionButton(
-              context,
-              Icons.settings,
-              'Settings',
-              Colors.green,
-              onPressedOverride: () {
-                Navigator.push(
+            const SizedBox(height: 20),
+            // Horizontal row buttons (3 per row)
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _buildProfileActionButtonRow(
                   context,
-                  MaterialPageRoute(builder: (_) => const SettingsTab()),
-                );
-              },
+                  Icons.favorite,
+                  'People I Liked',
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const UsersYouLikedScreen()),
+                    );
+                  },
+                ),
+                _buildProfileActionButtonRow(
+                  context,
+                  Icons.people,
+                  'Friends',
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FriendsScreen()),
+                    );
+                  },
+                ),
+                _buildProfileActionButtonRow(
+                  context,
+                  Icons.thumb_down_alt_rounded,
+                  'Disliked Users',
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const UsersYouDislikedScreen()),
+                    );
+                  },
+                ),
+                _buildProfileActionButtonRow(
+                  context,
+                  Icons.person_add,
+                  'Invite Friends',
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => InviteFriendsScreen(
+                          profileLink: 'https://yourapp.com/profile/${UserDetails.userId}',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _buildProfileActionButtonRow(
+                  context,
+                  Icons.article,
+                  'Blogs',
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BlogsScreen(accessToken: UserDetails.accessToken),
+                      ),
+                    );
+                  },
+                ),
+                _buildProfileActionButtonRow(
+                  context,
+                  Icons.star,
+                  'Favorites',
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FavoritesGridScreen(accessToken: UserDetails.accessToken),
+                      ),
+                    );
+                  },
+                ),
+                _buildProfileActionButtonRow(
+                  context,
+                  Icons.settings,
+                  'Settings',
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsTab()),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -216,32 +286,52 @@ class _MainProfileScreenState extends State<MainProfileScreen> {
     );
   }
 
-  Widget _buildProfileActionButton(
+// New builder for horizontal button with pink rounded bg & white outline icon
+  Widget _buildProfileActionButtonRow(
       BuildContext context,
       IconData icon,
       String title,
-      Color color, {
-        String? routeName,
-        VoidCallback? onPressedOverride,
-      }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: ElevatedButton.icon(
+      VoidCallback onPressed,
+      ) {
+    return SizedBox(
+      width: (MediaQuery.of(context).size.width - 60) / 3, // 3 buttons per row with spacing
+      child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: color.withOpacity(0.1),
-          foregroundColor: color,
-          minimumSize: const Size(double.infinity, 50),
+          backgroundColor: Colors.pink.shade50, // light pink background for the whole button
+          padding: const EdgeInsets.symmetric(vertical: 30),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(26),
+            side: BorderSide.none, // no outline for the button itself
           ),
-          side: BorderSide(color: color.withOpacity(0.4)),
         ),
-        onPressed: onPressedOverride ?? () {
-          if (routeName != null) Navigator.pushNamed(context, routeName);
-        },
-        icon: Icon(icon),
-        label: Text(title, style: const TextStyle(fontSize: 16)),
+        onPressed: onPressed,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: Colors.pink, // pink circle behind icon
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 28,
+                color: Colors.white, // icon white inside circle
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: Colors.black87),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+
+
 }
