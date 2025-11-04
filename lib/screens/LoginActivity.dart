@@ -49,26 +49,14 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 56),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                Wrap(
+                  alignment: WrapAlignment.center,
                   children: const [
-                    Text(
-                      "Welcome to ",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      "QuickDate",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFBF01FD),
-                      ),
-                    ),
+                    Text("Welcome to ", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    Text("QuickDate", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFBF01FD))),
                   ],
                 ),
+
                 const SizedBox(height: 8),
                 Text(AppLocalizations.of(context)!.login_subtitle, style: const TextStyle(fontSize: 16)),
                 const SizedBox(height: 30),
@@ -467,7 +455,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Try to login with our database first
       final body = {
         'username': username,
-        'password': password,
+        'password': password.toString(),
         'mobile_device_id': UserDetails.deviceId,
       };
 
@@ -478,6 +466,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       final data = jsonDecode(response.body);
+      print("Final data is $data");
 
       if (response.statusCode == 200 && data['data'] != null) {
         // ✅ User exists in our database - login directly
@@ -551,6 +540,7 @@ class _LoginScreenState extends State<LoginScreen> {
         body: body,
       );
       var data = jsonDecode(response.body);
+      print("Final data is $data");
       if (response.statusCode == 200 && data['data'] != null) {
         await _handleLoginSuccess(data['data'], username);
       } else {
@@ -590,122 +580,218 @@ class _LoginScreenState extends State<LoginScreen> {
       Map<String, dynamic> userData,
       String username,
       ) async {
+    print('--------------------------');
+    print('🔑 START LOGIN SUCCESS HANDLER');
+
     // ----------------- Basic user info -----------------
-    UserDetails.accessToken = userData['access_token'] ?? '';
-    UserDetails.userId = userData['user_id'] ?? 0;
-    UserDetails.password = passwordController.text.trim();
+    try {
+      UserDetails.accessToken = userData['access_token']?.toString() ?? '';
+      UserDetails.userId = userData['user_id'] is int
+          ? userData['user_id']
+          : int.tryParse(userData['user_id']?.toString() ?? '0') ?? 0;
+      UserDetails.password = passwordController.text.trim();
 
-    // ----------------- Read user_info safely -----------------
-    Map<String, dynamic> userInfo = Map<String, dynamic>.from(
-      userData['user_info'] ?? {},
-    );
+      print('Username: $username');
+      print('Access Token: ${UserDetails.accessToken}');
+      print('User ID: ${UserDetails.userId}');
+    } catch (e) {
+      print('Error parsing basic user info: $e');
+    }
 
-    UserDetails.username = userInfo['username'] ?? username;
-    UserDetails.fullName =
-    '${userInfo['first_name'] ?? ''} ${userInfo['last_name'] ?? ''}';
-    UserDetails.firstName = userInfo['first_name'] ?? '';
-    UserDetails.lastName = userInfo['last_name'] ?? '';
-    UserDetails.email = userInfo['email'] ?? '';
-    UserDetails.phone = userInfo['phone_number'] ?? '';
-    UserDetails.country_txt = userInfo['country'] ?? '';
-    UserDetails.birthday = userInfo['birthday'] ?? '';
-    UserDetails.gender = userInfo['gender']?.toString() ?? '';
-    UserDetails.genderTxt = userInfo['gender_txt'] ?? userInfo['gender'] ?? '';
-    UserDetails.relationship = userInfo['relationship']?.toString() ?? '';
-    UserDetails.workStatus = userInfo['work_status']?.toString() ?? '';
-    UserDetails.education = userInfo['education']?.toString() ?? '';
-    UserDetails.ethnicity = userInfo['ethnicity']?.toString() ?? '';
-    UserDetails.body = userInfo['body']?.toString() ?? '';
-    UserDetails.children = userInfo['children']?.toString() ?? '';
-    UserDetails.pets = userInfo['pets']?.toString() ?? '';
-    UserDetails.religion = userInfo['religion']?.toString() ?? '';
-    UserDetails.smoke = userInfo['smoke']?.toString() ?? '';
-    UserDetails.drink = userInfo['drink']?.toString() ?? '';
-    UserDetails.travel = userInfo['travel']?.toString() ?? '';
-    UserDetails.lookingFor = userInfo['show_me_to']?.toString() ?? '';
-    UserDetails.about = userInfo['about'] ?? '';
+    // ----------------- user_info -----------------
+    Map<String, dynamic> userInfo = {};
+    try {
+      if (userData['user_info'] is Map) {
+        userInfo = Map<String, dynamic>.from(userData['user_info']);
+      }
+      UserDetails.username = userInfo['username']?.toString() ?? username;
+      UserDetails.firstName = userInfo['first_name']?.toString() ?? '';
+      UserDetails.lastName = userInfo['last_name']?.toString() ?? '';
+      UserDetails.fullName =
+      '${UserDetails.firstName} ${UserDetails.lastName}';
+      UserDetails.email = userInfo['email']?.toString() ?? '';
+      UserDetails.phone = userInfo['phone_number']?.toString() ?? '';
+      UserDetails.country_txt = userInfo['country']?.toString() ?? '';
+      UserDetails.birthday = userInfo['birthday']?.toString() ?? '';
+      UserDetails.gender = userInfo['gender']?.toString() ?? '';
+      UserDetails.genderTxt =
+          userInfo['gender_txt']?.toString() ?? UserDetails.gender;
+      UserDetails.relationship = userInfo['relationship']?.toString() ?? '';
+      UserDetails.workStatus = userInfo['work_status']?.toString() ?? '';
+      UserDetails.education = userInfo['education']?.toString() ?? '';
+      UserDetails.ethnicity = userInfo['ethnicity']?.toString() ?? '';
+      UserDetails.body = userInfo['body']?.toString() ?? '';
+      UserDetails.children = userInfo['children']?.toString() ?? '';
+      UserDetails.pets = userInfo['pets']?.toString() ?? '';
+      UserDetails.religion = userInfo['religion']?.toString() ?? '';
+      UserDetails.smoke = userInfo['smoke']?.toString() ?? '';
+      UserDetails.drink = userInfo['drink']?.toString() ?? '';
+      UserDetails.travel = userInfo['travel']?.toString() ?? '';
+      UserDetails.lookingFor = userInfo['show_me_to']?.toString() ?? '';
+      UserDetails.about = userInfo['about']?.toString() ?? '';
+      UserDetails.isPro = userInfo['is_pro'] ?? "0";
+
+
+      print('Full Name: ${UserDetails.fullName}');
+      print('Email: ${UserDetails.email}');
+      print('Phone: ${UserDetails.phone}');
+      print('Country: ${UserDetails.country_txt}');
+      print('Gender: ${UserDetails.gender}');
+      print('Birthday: ${UserDetails.birthday}');
+    } catch (e) {
+      print('Error parsing user_info: $e');
+    }
 
     // ----------------- Favorites / Interests -----------------
-    UserDetails.hobby = userInfo['hobby'] ?? '';
-    UserDetails.music = userInfo['music'] ?? '';
-    UserDetails.movie = userInfo['movie'] ?? '';
-    UserDetails.dish = userInfo['dish'] ?? '';
-    UserDetails.song = userInfo['song'] ?? '';
+    try {
+      UserDetails.hobby = userInfo['hobby']?.toString() ?? '';
+      UserDetails.music = userInfo['music']?.toString() ?? '';
+      UserDetails.movie = userInfo['movie']?.toString() ?? '';
+      UserDetails.dish = userInfo['dish']?.toString() ?? '';
+      UserDetails.song = userInfo['song']?.toString() ?? '';
+
+      print('Hobby: ${UserDetails.hobby}');
+      print('Music: ${UserDetails.music}');
+      print('Movie: ${UserDetails.movie}');
+    } catch (e) {
+      print('Error parsing favorites: $e');
+    }
 
     // ----------------- Avatars & Covers -----------------
-    UserDetails.avatar = userInfo['avater'] ?? '';
-    UserDetails.cover = userInfo['cover'] ?? '';
+    try {
+      UserDetails.avatar = userInfo['avater']?.toString() ?? '';
+      UserDetails.cover = userInfo['cover']?.toString() ?? '';
+      print('Avatar: ${UserDetails.avatar}');
+      print('Cover: ${UserDetails.cover}');
+    } catch (e) {
+      print('Error parsing avatars/covers: $e');
+    }
 
     // ----------------- Social links -----------------
-    UserDetails.facebook = userInfo['facebook'] ?? userData['facebook'] ?? '';
-    UserDetails.google = userInfo['google'] ?? userData['google'] ?? '';
-    UserDetails.twitter = userInfo['twitter'] ?? userData['twitter'] ?? '';
-    UserDetails.linkedin = userInfo['linkedin'] ?? userData['linkedin'] ?? '';
-    UserDetails.instagram = userInfo['instagram'] ?? userData['instagram'] ?? '';
-    UserDetails.discord = userInfo['discord'] ?? userData['discord'] ?? '';
-    UserDetails.okru = userInfo['okru'] ?? userData['okru'] ?? '';
-    UserDetails.mailru = userInfo['mailru'] ?? userData['mailru'] ?? '';
-    UserDetails.wechat = userInfo['wechat'] ?? userData['wechat'] ?? '';
-    UserDetails.qq = userInfo['qq'] ?? userData['qq'] ?? '';
-    UserDetails.website = userInfo['website'] ?? userData['website'] ?? '';
+    try {
+      UserDetails.facebook = userInfo['facebook']?.toString() ??
+          userData['facebook']?.toString() ??
+          '';
+      UserDetails.google =
+          userInfo['google']?.toString() ?? userData['google']?.toString() ?? '';
+      UserDetails.twitter =
+          userInfo['twitter']?.toString() ?? userData['twitter']?.toString() ?? '';
+      UserDetails.linkedin =
+          userInfo['linkedin']?.toString() ?? userData['linkedin']?.toString() ?? '';
+      UserDetails.instagram =
+          userInfo['instagram']?.toString() ?? userData['instagram']?.toString() ?? '';
+      UserDetails.discord =
+          userInfo['discord']?.toString() ?? userData['discord']?.toString() ?? '';
+      UserDetails.okru =
+          userInfo['okru']?.toString() ?? userData['okru']?.toString() ?? '';
+      UserDetails.mailru =
+          userInfo['mailru']?.toString() ?? userData['mailru']?.toString() ?? '';
+      UserDetails.wechat =
+          userInfo['wechat']?.toString() ?? userData['wechat']?.toString() ?? '';
+      UserDetails.qq =
+          userInfo['qq']?.toString() ?? userData['qq']?.toString() ?? '';
+      UserDetails.website =
+          userInfo['website']?.toString() ?? userData['website']?.toString() ?? '';
+
+      print('Social Links: facebook=${UserDetails.facebook}, google=${UserDetails.google}');
+    } catch (e) {
+      print('Error parsing social links: $e');
+    }
 
     // ----------------- Media files -----------------
-    UserDetails.mediaFiles = (userInfo['mediafiles'] as List?)
-        ?.map((e) => MediaFile.fromJson(e))
-        .toList() ??
-        [];
+    try {
+      final mediaList = userInfo['mediafiles'] as List<dynamic>?;
+
+      if (mediaList != null && mediaList.isNotEmpty) {
+        UserDetails.mediaFiles = mediaList
+            .map((e) => MediaFile.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+
+        print('Media Files:');
+        for (var i = 0; i < UserDetails.mediaFiles.length; i++) {
+          final m = UserDetails.mediaFiles[i];
+          print('  Media #$i:');
+          print('    ID: ${m.id}');
+          print('    Full: ${m.full}');
+          print('    Avatar: ${m.avater}');
+          print('    Video File: ${m.videoFile}');
+          print('    Is Video: ${m.isVideo}');
+          print('    Is Private: ${m.isPrivate}');
+          print('    Private Full: ${m.privateFileFull}');
+          print('    Private Avatar: ${m.privateFileAvater}');
+          print('    Is Confirmed: ${m.isConfirmed}');
+          print('    Is Approved: ${m.isApproved}');
+        }
+      } else {
+        UserDetails.mediaFiles = [];
+        print('No media files found.');
+      }
+    } catch (e) {
+      UserDetails.mediaFiles = [];
+      print('Error parsing media files: $e');
+    }
+
 
     // ----------------- Blocked users -----------------
     try {
-      // final blockedResponse = await http.get(
-      //   Uri.parse(
-      //       '${SocialLoginService.baseUrl}/users/blocked_users?access_token=${UserDetails.accessToken}&limit=50'),
-      //   headers: {'Accept': 'application/json'},
-      // );
-      final blockedResponse = await SessionManager.get(
-        Uri.parse(
-            '${SocialLoginService.baseUrl}/users/blocked_users?access_token=${UserDetails.accessToken}&limit=50'),
+      final response = await http.post(
+        Uri.parse('${SocialLoginService.baseUrl}/users/profile'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'user_id': UserDetails.userId.toString(),
+          'fetch': 'blocks',
+          'access_token': UserDetails.accessToken,
+        },
       );
 
-      if (blockedResponse.statusCode == 200) {
-        final blockedData = jsonDecode(blockedResponse.body);
-        if (blockedData['code'] == 200) {
-          UserDetails.blockedUsers =
-          List<Map<String, dynamic>>.from(blockedData['data']);
+      // Extract JSON from response, ignoring any PHP warnings/HTML
+      String body = response.body;
+      int startIndex = body.indexOf('{');
+      int endIndex = body.lastIndexOf('}');
+      if (startIndex == -1 || endIndex == -1) {
+        print('No valid JSON found in response.');
+        UserDetails.blockedUsers = [];
+        return;
+      }
+
+      String jsonString = body.substring(startIndex, endIndex + 1);
+      final blockedData = jsonDecode(jsonString);
+
+      if (blockedData['code'] == 200 && blockedData['data'] is Map) {
+        var blocks = blockedData['data']['blocks'];
+        if (blocks is List) {
+          UserDetails.blockedUsers = List<Map<String, dynamic>>.from(blocks);
         } else {
           UserDetails.blockedUsers = [];
         }
       } else {
         UserDetails.blockedUsers = [];
       }
+
+      print('Blocked Users Count: ${UserDetails.blockedUsers.length}');
     } catch (e) {
       print('Error fetching blocked users: $e');
       UserDetails.blockedUsers = [];
     }
-
-
-    // Save access token and user data for transaction API
-    await SocialLoginService.saveAccessToken(UserDetails.accessToken);
-    await SocialLoginService.saveUserData({
-      'id': UserDetails.userId.toString(),
-      'username': UserDetails.username,
-      'email': UserDetails.email,
-      'first_name': UserDetails.firstName,
-      'last_name': UserDetails.lastName,
-      'access_token': UserDetails.accessToken,
-      ...userInfo, // Include all user info
-    });
-    await SessionManager.setSession(userData: userData);
-    // ----------------- Debug logs -----------------
+    print('✅ LOGIN SUCCESS HANDLER COMPLETE');
     print('--------------------------');
-    print('✅ CURRENT USER LOGGED IN:');
-    print('User ID: ${UserDetails.userId}');
-    print('Username: ${UserDetails.username}');
-    print('Email: ${UserDetails.email}');
-    print('Country: ${UserDetails.country_txt}');
-    print('Phone: ${UserDetails.phone}');
-    print('Blocked Users: ${UserDetails.blockedUsers.length}');
-    print('--------------------------');
+
+    // Save session & navigate
+    try {
+      await SocialLoginService.saveAccessToken(UserDetails.accessToken);
+      await SocialLoginService.saveUserData({
+        'id': UserDetails.userId.toString(),
+        'username': UserDetails.username,
+        'email': UserDetails.email,
+        'first_name': UserDetails.firstName,
+        'last_name': UserDetails.lastName,
+        'access_token': UserDetails.accessToken,
+        ...userInfo,
+      });
+      await SessionManager.setSession(userData: userData);
+    } catch (e) {
+      print('Error saving session: $e');
+    }
 
     if (!mounted) return;
     Navigator.pushReplacement(
@@ -713,6 +799,7 @@ class _LoginScreenState extends State<LoginScreen> {
       MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
   }
+
 
 
   void _showDialog(String title, String message) {

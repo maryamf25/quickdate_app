@@ -64,47 +64,47 @@ class StickersBottomSheet extends StatelessWidget {
             child: stickers.isEmpty
                 ? _buildEmptyState()
                 : GridView.builder(
-                    itemCount: stickers.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
+              itemCount: stickers.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
+              itemBuilder: (context, index) {
+                final sticker = stickers[index];
+                return GestureDetector(
+                  onTap: () {
+                    onStickerSelected(sticker);
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
-                    itemBuilder: (context, index) {
-                      final sticker = stickers[index];
-                      return GestureDetector(
-                        onTap: () {
-                          onStickerSelected(sticker);
-                          Navigator.pop(context);
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        sticker.url,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          );
                         },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              sticker.url,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return const Center(
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                print('❌ Failed to load sticker: ${sticker.url}');
-                                return const Center(
-                                  child: Icon(Icons.broken_image, color: Colors.grey),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                        errorBuilder: (context, error, stackTrace) {
+                          print('❌ Failed to load sticker: ${sticker.url}');
+                          return const Center(
+                            child: Icon(Icons.broken_image, color: Colors.grey),
+                          );
+                        },
+                      ),
+                    ),
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -134,14 +134,13 @@ class StickersBottomSheet extends StatelessWidget {
 }
 
 // ---------------- Media Selection BottomSheet ----------------
+
 class MediaSelectionBottomSheet extends StatelessWidget {
-  final Function(ImageSource) onImageSourceSelected;
-  final Function() onVideoSelected;
+  final Function(ImageSource source) onImageSourceSelected;
 
   const MediaSelectionBottomSheet({
     Key? key,
     required this.onImageSourceSelected,
-    required this.onVideoSelected,
   }) : super(key: key);
 
   @override
@@ -199,25 +198,12 @@ class MediaSelectionBottomSheet extends StatelessWidget {
               _buildMediaOption(
                 icon: Icons.camera_alt,
                 title: 'Camera',
-                subtitle: 'Take a photo',
+                subtitle: 'Take a new photo',
                 onTap: () {
                   Navigator.pop(context);
                   onImageSourceSelected(ImageSource.camera);
                 },
               ),
-
-            if (!kIsWeb) const Divider(height: 1),
-
-            // Video Option
-            _buildMediaOption(
-              icon: Icons.video_library,
-              title: 'Video',
-              subtitle: 'Send a video',
-              onTap: () {
-                Navigator.pop(context);
-                onVideoSelected();
-              },
-            ),
 
             const SizedBox(height: 16),
           ],
@@ -261,6 +247,7 @@ class MediaSelectionBottomSheet extends StatelessWidget {
     );
   }
 }
+
 
 // ---------------- Chat Screen ----------------
 class ChatConversationScreen extends StatefulWidget {
@@ -339,18 +326,30 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     try {
       final cameras = await availableCameras();
-      if (cameras.isNotEmpty) {
-        _cameraController = CameraController(
-          cameras.firstWhere(
-                (camera) => camera.lensDirection == CameraLensDirection.back,
-            orElse: () => cameras.first,
-          ),
-          ResolutionPreset.high,
-        );
-        await _cameraController!.initialize();
+      if (cameras.isEmpty) {
+        _showError('No cameras found on device');
+        return;
+      }
+
+      _cameraController = CameraController(
+        cameras.firstWhere(
+              (camera) => camera.lensDirection == CameraLensDirection.back,
+          orElse: () => cameras.first,
+        ),
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+
+      // Initialize camera
+      await _cameraController!.initialize();
+
+      // If mounted, update the UI
+      if (mounted) {
         setState(() {});
       }
+
     } catch (e) {
+      _showError('Failed to initialize camera: ${e.toString()}');
       print('Error initializing camera: $e');
     }
   }
@@ -453,28 +452,28 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             if (stickersData.isNotEmpty) {
               final stickers = stickersData
                   .where((stickerData) => stickerData != null &&
-                         stickerData['id'] != null &&
-                         stickerData['file'] != null)
+                  stickerData['id'] != null &&
+                  stickerData['file'] != null)
                   .map((stickerData) {
-                    String id = stickerData['id'].toString();
-                    String fileUrl = stickerData['file'].toString();
+                String id = stickerData['id'].toString();
+                String fileUrl = stickerData['file'].toString();
 
-                    // Ensure the file URL is properly formatted
-                    if (fileUrl.isNotEmpty && !fileUrl.startsWith('http')) {
-                      if (fileUrl.startsWith('/')) {
-                        fileUrl = 'https://backend.staralign.me$fileUrl';
-                      } else {
-                        fileUrl = 'https://backend.staralign.me/$fileUrl';
-                      }
-                    }
+                // Ensure the file URL is properly formatted
+                if (fileUrl.isNotEmpty && !fileUrl.startsWith('http')) {
+                  if (fileUrl.startsWith('/')) {
+                    fileUrl = 'https://backend.staralign.me$fileUrl';
+                  } else {
+                    fileUrl = 'https://backend.staralign.me/$fileUrl';
+                  }
+                }
 
-                    print('🎯 Sticker ID: $id, URL: $fileUrl');
+                print('🎯 Sticker ID: $id, URL: $fileUrl');
 
-                    return Sticker(
-                      id: id,
-                      url: fileUrl,
-                    );
-                  })
+                return Sticker(
+                  id: id,
+                  url: fileUrl,
+                );
+              })
                   .toList();
 
               if (stickers.isNotEmpty) {
@@ -569,8 +568,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   // ---------------- Premium Check Methods ----------------
   // Check if user has premium access
   bool _isPremiumUser() {
-    return UserDetails.isPro == "1" || UserDetails.isPro.toLowerCase() == "true";
+    print('isPro value: ${UserDetails.isPro}');
+    print('isPro type: ${UserDetails.isPro.runtimeType}');
+    return UserDetails.isPro == "1";
   }
+
+
 
   // Show dialog when premium is required
   void _showPremiumRequiredDialog() {
@@ -619,7 +622,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   // ---------------- Media Selection ----------------
   void _showMediaSelectionSheet() {
-    // Check if user is premium
     if (!_isPremiumUser()) {
       _showPremiumRequiredDialog();
       return;
@@ -638,10 +640,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             _pickImageFromGallery();
           }
         },
-        onVideoSelected: _pickVideo,
       ),
     );
   }
+
 
   // ---------------- Gallery Implementation ----------------
   Future<void> _pickImageFromGallery() async {
@@ -1007,6 +1009,26 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   // ---------------- Send Image Message (Mobile) ----------------
   Future<void> _sendImageMessage(File imageFile) async {
     try {
+      // First add a temporary message with loading state
+      final tempMessage = {
+        'from': int.parse(UserDetails.userId.toString()),
+        'to': widget.conversation['user_id'],
+        'text': '',
+        'media': '',
+        'sticker': '',
+        'seen': 0,
+        'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        'message_type': 'media',
+        'type': 'sent',
+        'isLoading': true,  // Add loading state
+        'localPath': imageFile.path  // Store local path for preview
+      };
+
+      setState(() {
+        _messages.add(tempMessage);
+      });
+      _scrollToBottom();
+
       final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_media_message');
 
       var request = http.MultipartRequest('POST', url);
@@ -1027,20 +1049,27 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 200) {
+          // Find and update the temporary message
           setState(() {
-            _messages.add({
-              'from': int.parse(UserDetails.userId.toString()),
-              'to': widget.conversation['user_id'],
-              'text': '',
-              'media': data['data']?['media'] ?? '',
-              'sticker': '',
-              'seen': 0,
-              'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-              'message_type': 'media',
-              'type': 'sent',
-            });
+            final index = _messages.lastIndexWhere((m) =>
+            m['isLoading'] == true &&
+                m['localPath'] == imageFile.path
+            );
+            if (index != -1) {
+              _messages[index] = {
+                'from': int.parse(UserDetails.userId.toString()),
+                'to': widget.conversation['user_id'],
+                'text': '',
+                'media': data['data']?['media'] ?? '',
+                'sticker': '',
+                'seen': 0,
+                'created_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                'message_type': 'media',
+                'type': 'sent',
+                'isLoading': false
+              };
+            }
           });
-          _scrollToBottom();
           if (widget.onMessageSent != null) widget.onMessageSent!();
         } else {
           _showError(data['message']?.toString() ?? 'Failed to send image');
@@ -1058,27 +1087,51 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   // ---------------- Send Image Message (Web) ----------------
   Future<void> _sendImageMessageWeb(List<int> bytes, String filename) async {
     try {
-      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_media_message');
+      print('🔹 Starting _sendImageMessageWeb...');
+      print('➡️ API URL: ${SocialLoginService.baseUrl}/messages/send_media_message');
+      print('📸 Filename: $filename | Bytes length: ${bytes.length}');
+      print('👤 Sending to user ID: ${widget.conversation['user_id']}');
+      print('🔑 Access token: ${UserDetails.accessToken}');
 
+      final url = Uri.parse('${SocialLoginService.baseUrl}/messages/send_media_message');
       var request = http.MultipartRequest('POST', url);
+
+      // Add form fields
       request.fields['access_token'] = UserDetails.accessToken;
       request.fields['to_userid'] = widget.conversation['user_id'].toString();
       request.fields['hash_id'] = UserDetails.accessToken;
 
+      // Attach the image file
       request.files.add(
         http.MultipartFile.fromBytes(
-          'media',
+          'media_file',
           bytes,
           filename: filename,
         ),
       );
 
+      print('🧾 Request prepared with fields: ${request.fields}');
+      print('🖼️ Files count: ${request.files.length}');
+
+      // Send request
       final streamedResponse = await request.send();
+      print('📡 Request sent. Waiting for response...');
+
       final response = await http.Response.fromStream(streamedResponse);
+      print('✅ Response received. Status: ${response.statusCode}');
+      print('🧠 Raw response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['status'] == 200) {
+        print('📦 Decoded JSON: $data');
+
+        // ⚡ Some APIs return "code" instead of "status" — handle both
+        final status = data['status'] ?? data['code'];
+
+        if (status == 200) {
+          print('✅ Image message sent successfully.');
+
+          // 🧩 Wrap list update and scroll in one build cycle
           setState(() {
             _messages.add({
               'from': int.parse(UserDetails.userId.toString()),
@@ -1092,20 +1145,32 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               'type': 'sent',
             });
           });
-          _scrollToBottom();
+
+          // 🧭 Scroll to bottom *after* frame is built
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToBottom();
+          });
+
+          // Notify parent if needed
           if (widget.onMessageSent != null) widget.onMessageSent!();
         } else {
+          print('⚠️ Server returned non-200 status: ${data['message']}');
           _showError(data['message']?.toString() ?? 'Failed to send image');
         }
       } else {
+        print('❌ Server error: ${response.statusCode}');
         _showError('Server error ${response.statusCode}');
       }
-    } catch (e) {
+    } catch (e, stack) {
+      print('💥 Exception in _sendImageMessageWeb: $e');
+      print('🧩 Stack trace: $stack');
       _showError('Failed to send image: $e');
     } finally {
+      print('🏁 _sendImageMessageWeb completed.');
       setState(() => _sending = false);
     }
   }
+
 
   // ---------------- Send Video Message (Mobile) ----------------
   Future<void> _sendVideoMessage(File videoFile) async {
@@ -1354,7 +1419,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  // ---------------- Message Bubble ----------------
   Widget _buildMessageBubble(dynamic message) {
     final currentUserId = int.parse(UserDetails.userId.toString());
     final messageFromId = message['from'] is int
@@ -1367,6 +1431,17 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final sticker = message['sticker']?.toString() ?? '';
     final messageType = message['message_type']?.toString() ?? 'text';
     final timestamp = _formatTimestamp(message['created_at']);
+    final isLoading = message['isLoading'] == true;
+    final localPath = message['localPath']?.toString();
+
+    // 🧠 Fix: Ensure correct absolute URLs for media & stickers
+    final baseUrl = SocialLoginService.baseUrl;
+    final mediaUrl = media.isNotEmpty
+        ? (media.startsWith('http') ? media : '$baseUrl/$media')
+        : '';
+    final stickerUrl = sticker.isNotEmpty
+        ? (sticker.startsWith('http') ? sticker : '$baseUrl/$sticker')
+        : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1391,18 +1466,86 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                         fontSize: 16,
                       ),
                     ),
-                  if (messageType == 'media' && media.isNotEmpty)
+
+                  if (messageType == 'media')
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        media,
+                      child: isLoading && localPath != null
+                          ? Stack(
+                        children: [
+                          // Show local image while uploading
+                          Image.file(
+                            File(localPath),
+                            width: 200,
+                            height: 200,
+                            fit: BoxFit.cover,
+                          ),
+                          Container(
+                            width: 200,
+                            height: 200,
+                            color: Colors.black.withOpacity(0.3),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                          : mediaUrl.isNotEmpty
+                          ? Image.network(
+                        mediaUrl,
                         width: 200,
+                        height: 200,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.broken_image),
+                        errorBuilder: (context, error, stackTrace) {
+                          print('Error loading image: $error');
+                          return Container(
+                            width: 200,
+                            height: 200,
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                                size: 40,
+                              ),
+                            ),
+                          );
+                        },
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return Container(
+                            width: 200,
+                            height: 200,
+                            color: Colors.grey[100],
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                    : null,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                          : Container(
+                        width: 200,
+                        height: 200,
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(
+                            Icons.image_not_supported,
+                            color: Colors.grey,
+                            size: 40,
+                          ),
+                        ),
                       ),
                     ),
-                  if (messageType == 'video' && media.isNotEmpty)
+
+                  if (messageType == 'video' && mediaUrl.isNotEmpty)
                     Column(
                       children: [
                         ClipRRect(
@@ -1410,7 +1553,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           child: Stack(
                             children: [
                               Image.network(
-                                media,
+                                mediaUrl,
                                 width: 200,
                                 height: 150,
                                 fit: BoxFit.cover,
@@ -1422,37 +1565,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                                       child: const Icon(Icons.videocam, size: 50),
                                     ),
                               ),
-                              Positioned.fill(
+                              const Positioned.fill(
                                 child: Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black54,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 30),
-                                  ),
+                                  child: Icon(Icons.play_circle_fill,
+                                      color: Colors.white, size: 40),
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
-                          'Video',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
+                        const Text('Video',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
                       ],
                     ),
-                  if (messageType == 'sticker' && sticker.isNotEmpty)
+
+                  if (messageType == 'sticker' && stickerUrl.isNotEmpty)
                     Image.network(
-                      sticker,
+                      stickerUrl,
                       width: 100,
                       height: 100,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) =>
                       const Icon(Icons.broken_image),
                     ),
+
                   const SizedBox(height: 4),
                   Row(
                     mainAxisSize: MainAxisSize.min,

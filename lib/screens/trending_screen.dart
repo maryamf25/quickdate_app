@@ -260,6 +260,8 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
   List<dynamic> _hotOrNotUsers = [];
   List<dynamic> _filteredFriends = [];
   List<dynamic> _filteredHotOrNotUsers = [];
+  List<dynamic> _searchResults = [];
+  List<dynamic> _filteredSearchResults = [];
   bool _isLoading = true;
   late AnimationController _swipeAnimationController;
   bool _showSearchBar = false;
@@ -315,10 +317,20 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
 
         if (data['code'] == 200 && data['data'] != null) {
           List<dynamic> rawFriends = List<dynamic>.from(data['data']);
+          print('Friend data: ${rawFriends.length}');
+
+          // Debug: print email, username, password, is_pro for all users
+          for (var user in rawFriends) {
+            print('--- User ---');
+            print('Username: ${user['username']}');
+            print('Email: ${user['email']}');
+            print('Password: ${user['password']}');
+            print('is_pro: ${user['is_pro']}');
+          }
 
           // Apply client-side filters for parameters not supported by backend
           List<dynamic> filteredData = _applyClientSideFilters(rawFriends);
-
+          print('Filtered friend data: ${filteredData.length}');
           setState(() {
             _friends = filteredData;
             _filteredFriends = _friends;
@@ -334,8 +346,10 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
       }
     } catch (e) {
       setState(() => _friends = []);
+      print('Error fetching friends: $e');
     }
   }
+
 
   Future<void> _fetchHotOrNotUsers() async {
     // Use the dedicated get_hot_or_not endpoint as specified in the PHP code
@@ -482,23 +496,71 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
   }
 
   void _searchUsers(String query) {
+    print('Search query: "$query"'); // Debug: show the search query
+
     setState(() {
+
+      // 🧩 Combine all users (friends + hot/not)
+      List<dynamic> combinedUsers = [..._friends, ..._hotOrNotUsers];
+
+      // 🎯 Apply filters if enabled
+      combinedUsers = combinedUsers.where((user) {
+        bool matches = true;
+
+        // Filter: online only
+        if (UserDetails.filterOptionIsOnline) {
+          matches = matches && (user['online'] == true || user['online'] == 1);
+        }
+
+        // Filter: gender
+        String genderFilter = UserDetails.filterOptionGender;
+        if (genderFilter.isNotEmpty && genderFilter != '4525,4526') {
+          matches = matches && genderFilter.contains(user['gender'].toString());
+        }
+
+        return matches;
+      }).toList();
+
+      // 🔎 If query is empty → show all users (filtered + unique)
       if (query.isEmpty) {
-        _filteredFriends = _friends;
-        _filteredHotOrNotUsers = _hotOrNotUsers;
+        final uniqueMap = {for (var u in combinedUsers) u['id']: u};
+        _filteredSearchResults = uniqueMap.values.toList();
+
+        print('Query empty → showing all unique users: ${_filteredSearchResults.length}');
       } else {
-        _filteredFriends = _friends.where((user) {
+        // 🔍 If query has text → search by username
+        final lowerQuery = query.toLowerCase();
+
+        final filteredFriends = _friends.where((user) {
           final username = user['username']?.toString().toLowerCase() ?? '';
-          return username.contains(query.toLowerCase());
+          final match = username.contains(lowerQuery);
+          if (match) print('Friend matched: $username');
+          return match;
         }).toList();
 
-        _filteredHotOrNotUsers = _hotOrNotUsers.where((user) {
+        final filteredHotOrNot = _hotOrNotUsers.where((user) {
           final username = user['username']?.toString().toLowerCase() ?? '';
-          return username.contains(query.toLowerCase());
+          final match = username.contains(lowerQuery);
+          if (match) print('Hot/Not matched: $username');
+          return match;
         }).toList();
+
+        // ✨ Merge and remove duplicates by user['id']
+        final merged = [...filteredFriends, ...filteredHotOrNot];
+        final uniqueMap = {for (var u in merged) u['id']: u};
+        _filteredSearchResults = uniqueMap.values.toList();
+
+        print('Filtered unique results count: ${_filteredSearchResults.length}');
       }
+
+      // Update global search results
+      _searchResults = _filteredSearchResults;
+
+      print('✅ Final search results (unique): ${_searchResults.length}');
     });
   }
+
+
 
   bool _hasActiveFilters() {
     return UserDetails.filterOptionIsOnline ||
@@ -519,87 +581,78 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
 
   List<dynamic> _applyClientSideFilters(List<dynamic> users) {
     return users.where((user) {
-      // Age filtering (backup for server-side filtering)
-      if (user['age'] != null) {
-        try {
-          int age = int.parse(user['age'].toString());
-          if (age < UserDetails.filterOptionAgeMin || age > UserDetails.filterOptionAgeMax) {
-            return false;
-          }
-        } catch (e) {
-          // If age parsing fails, include the user
+      // Age filter
+      if (UserDetails.filterOptionAgeMin != 18 || UserDetails.filterOptionAgeMax != 75) {
+        if (user['age'] != null) {
+          try {
+            int age = int.parse(user['age'].toString());
+            if (age < UserDetails.filterOptionAgeMin || age > UserDetails.filterOptionAgeMax) return false;
+          } catch (_) {}
         }
       }
 
-      // Body type filtering
+      // Body type filter
       if (UserDetails.filterOptionBodyTypes.isNotEmpty && user['body'] != null) {
         String bodyType = user['body'].toString().toLowerCase();
-        bool bodyMatches = UserDetails.filterOptionBodyTypes.any((filterBody) =>
+        bool match = UserDetails.filterOptionBodyTypes.any((filterBody) =>
             bodyType.contains(filterBody.toLowerCase()));
-        if (!bodyMatches) return false;
+        if (!match) return false;
       }
 
-      // Height filtering
-      if (user['height'] != null) {
-        try {
-          double height = double.parse(user['height'].toString());
-          if (height < UserDetails.filterOptionHeightMin || height > UserDetails.filterOptionHeightMax) {
-            return false;
-          }
-        } catch (e) {
-          // If height parsing fails, include the user
+      // Height filter
+      if (UserDetails.filterOptionHeightMin != 150 || UserDetails.filterOptionHeightMax != 200) {
+        if (user['height'] != null) {
+          try {
+            double height = double.parse(user['height'].toString());
+            if (height < UserDetails.filterOptionHeightMin || height > UserDetails.filterOptionHeightMax) return false;
+          } catch (_) {}
         }
       }
 
-      // Language filtering
-      if (UserDetails.filterOptionLanguage != "english" && UserDetails.filterOptionLanguage != "any" && user['language'] != null) {
-        String userLanguage = user['language'].toString().toLowerCase();
-        String filterLanguage = UserDetails.filterOptionLanguage.toLowerCase();
-        if (userLanguage != filterLanguage) return false;
+      // Language filter
+      if (UserDetails.filterOptionLanguage.toLowerCase() != "english" &&
+          UserDetails.filterOptionLanguage.toLowerCase() != "any") {
+        if (user['language'] != null &&
+            user['language'].toString().toLowerCase() != UserDetails.filterOptionLanguage.toLowerCase())
+          return false;
       }
 
-      // Religion filtering
+      // Religion filter
       if (UserDetails.filterOptionReligion != "Any" && user['religion'] != null) {
-        String userReligion = user['religion'].toString().toLowerCase();
-        String filterReligion = UserDetails.filterOptionReligion.toLowerCase();
-        if (userReligion != filterReligion) return false;
+        if (user['religion'].toString().toLowerCase() != UserDetails.filterOptionReligion.toLowerCase())
+          return false;
       }
 
-      // Ethnicity filtering
+      // Ethnicity filter
       if (UserDetails.filterOptionEthnicities.isNotEmpty && user['ethnicity'] != null) {
         String userEthnicity = user['ethnicity'].toString().toLowerCase();
-        bool ethnicityMatches = UserDetails.filterOptionEthnicities.any((filterEthnicity) =>
-            userEthnicity.contains(filterEthnicity.toLowerCase()));
-        if (!ethnicityMatches) return false;
+        bool match = UserDetails.filterOptionEthnicities.any(
+                (filterEthnicity) => userEthnicity.contains(filterEthnicity.toLowerCase()));
+        if (!match) return false;
       }
 
-      // Relationship filtering
+      // Relationship filter
       if (UserDetails.filterOptionRelationship != "Any" && user['relationship'] != null) {
-        String userRelationship = user['relationship'].toString().toLowerCase();
-        String filterRelationship = UserDetails.filterOptionRelationship.toLowerCase();
-        if (userRelationship != filterRelationship) return false;
+        if (user['relationship'].toString().toLowerCase() != UserDetails.filterOptionRelationship.toLowerCase())
+          return false;
       }
 
-      // Smoking filtering
+      // Smoking filter
       if (UserDetails.filterOptionSmoking != "Any" && user['smoke'] != null) {
-        String userSmoking = user['smoke'].toString().toLowerCase();
-        String filterSmoking = UserDetails.filterOptionSmoking.toLowerCase();
-
-        // Map filter values to potential API values
-        if (filterSmoking == "non-smoker" && userSmoking != "0" && userSmoking != "no") return false;
-        if (filterSmoking == "smoker" && userSmoking != "1" && userSmoking != "yes") return false;
-        if (filterSmoking == "occasionally" && !userSmoking.contains("occasion")) return false;
+        String u = user['smoke'].toString().toLowerCase();
+        String f = UserDetails.filterOptionSmoking.toLowerCase();
+        if (f == "non-smoker" && u != "0" && u != "no") return false;
+        if (f == "smoker" && u != "1" && u != "yes") return false;
+        if (f == "occasionally" && !u.contains("occasion")) return false;
       }
 
-      // Drinking filtering
+      // Drinking filter
       if (UserDetails.filterOptionDrinking != "Any" && user['drink'] != null) {
-        String userDrinking = user['drink'].toString().toLowerCase();
-        String filterDrinking = UserDetails.filterOptionDrinking.toLowerCase();
-
-        // Map filter values to potential API values
-        if (filterDrinking == "non-drinker" && userDrinking != "0" && userDrinking != "no") return false;
-        if (filterDrinking == "social drinker" && !userDrinking.contains("social")) return false;
-        if (filterDrinking == "regular drinker" && !userDrinking.contains("regular")) return false;
+        String u = user['drink'].toString().toLowerCase();
+        String f = UserDetails.filterOptionDrinking.toLowerCase();
+        if (f == "non-drinker" && u != "0" && u != "no") return false;
+        if (f == "social drinker" && !u.contains("social")) return false;
+        if (f == "regular drinker" && !u.contains("regular")) return false;
       }
 
       return true;
@@ -623,130 +676,133 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
       transitionBuilder: (context, anim1, anim2, child) {
         return FadeTransition(
           opacity: anim1,
-          child: Scaffold(
-            // 🌈 Entire background gradient here
-            body: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFF8D3E7), // soft pink
-                    Colors.white,      // fades to white
-                  ],
-                ),
-              ),
-              child: SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 🔍 Top bar (simple transparent background now)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      child: Row(
-                        children: [
-                          // Back Button
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.black),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-
-                          // Search Icon
-                          const Icon(Icons.search, color: Colors.black),
-
-                          const SizedBox(width: 10),
-
-                          // Text Field
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              autofocus: true,
-                              cursorColor: Colors.black,
-                              style: const TextStyle(color: Colors.black),
-                              decoration: const InputDecoration(
-                                hintText: 'Search users...',
-                                border: InputBorder.none,
-                                hintStyle: TextStyle(color: Colors.black54),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Scaffold(
+                body: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFFF8D3E7),
+                        Colors.white,
+                      ],
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back, color: Colors.black),
+                                onPressed: () => Navigator.pop(context),
                               ),
-                              onChanged: _searchUsers,
-                            ),
+                              const Icon(Icons.search, color: Colors.black),
+                              const SizedBox(width: 10),
+
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  autofocus: true,
+                                  cursorColor: Colors.black,
+                                  style: const TextStyle(color: Colors.black),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search users...',
+                                    border: InputBorder.none,
+                                    hintStyle: TextStyle(color: Colors.black54),
+                                  ),
+                                  onChanged: (query) {
+                                    _searchUsers(query);
+                                    setDialogState(() {}); // 🔥 refresh dialog UI
+                                  },
+                                ),
+                              ),
+
+                              IconButton(
+                                icon: const Icon(Icons.tune, color: Colors.black),
+                                onPressed: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const FilterScreen()),
+                                  );
+                                  if (result == true) {
+                                    _fetchFriends();
+                                    _fetchHotOrNotUsers();
+                                    setDialogState(() {});
+                                  }
+                                },
+                              ),
+
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.black),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _searchUsers('');
+                                  setDialogState(() {});
+                                },
+                              ),
+                            ],
                           ),
-
-                          // Filter Button
-                          IconButton(
-                            icon: const Icon(Icons.tune, color: Colors.black),
-                            onPressed: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const FilterScreen()),
-                              );
-                              if (result == true) {
-                                _fetchFriends();
-                                _fetchHotOrNotUsers();
-                              }
-                            },
-                          ),
-
-                          // Cross (clear/close)
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.black),
-                            onPressed: () {
-                              _searchController.clear();
-                              _searchUsers('');
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // 🔎 Search Results
-                    Expanded(
-                      child: _filteredFriends.isEmpty && _filteredHotOrNotUsers.isEmpty
-                          ? const Center(
-                        child: Text(
-                          'No users found',
-                          style: TextStyle(color: Colors.black54),
                         ),
-                      )
-                          : ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        children: [
-                          ..._filteredHotOrNotUsers.map((user) => ListTile(
-                            leading: CircleAvatar(
-                              backgroundImage: user['avater'] != null &&
-                                  user['avater'].toString().isNotEmpty
-                                  ? NetworkImage(user['avater'])
-                                  : null,
-                              backgroundColor: Colors.grey[300],
+
+                        const SizedBox(height: 10),
+
+                        // 🔎 Search Results List
+                        Expanded(
+                          child: _searchResults.isEmpty
+                              ? const Center(
+                            child: Text(
+                              'No users found',
+                              style: TextStyle(color: Colors.black54),
                             ),
-                            title: Text(
-                              user['username'] ?? 'Unknown',
-                              style: const TextStyle(color: Colors.black),
-                            ),
-                            subtitle: Text(
-                              user['country_txt'] ?? '',
-                              style: const TextStyle(color: Colors.black54),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              _openUserProfile(user);
+                          )
+                              : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            itemCount: _searchResults.length,
+                            itemBuilder: (context, index) {
+                              final user = _searchResults[index];
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage: user['avater'] != null &&
+                                      user['avater'].toString().isNotEmpty
+                                      ? NetworkImage(user['avater'])
+                                      : null,
+                                  backgroundColor: Colors.grey[300],
+                                ),
+                                title: Text(
+                                  user['username'] ?? 'Unknown',
+                                  style: const TextStyle(color: Colors.black),
+                                ),
+                                subtitle: Text(
+                                  user['country_txt'] ?? '',
+                                  style: const TextStyle(color: Colors.black54),
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _openUserProfile(user);
+                                },
+                              );
                             },
-                          )),
-                        ],
-                      ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         );
       },
       transitionDuration: const Duration(milliseconds: 250),
     );
   }
+
 
   @override
   void dispose() {

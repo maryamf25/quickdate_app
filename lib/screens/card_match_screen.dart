@@ -5,10 +5,11 @@ import '../utils/user_details.dart';
 import 'social_login_service.dart';
 import 'dart:ui';
 import 'package:intl/intl.dart';
-
+import 'random_user_profile_screen.dart';
 // -------------------- User Model --------------------
 class User {
   final String id;
+  final String username;  // <-- added
   final String fullname;
   final String avatar;
   final int age;
@@ -17,6 +18,7 @@ class User {
 
   User({
     required this.id,
+    required this.username,  // <-- added
     required this.fullname,
     required this.avatar,
     required this.age,
@@ -27,10 +29,10 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id']?.toString() ?? '',
-      fullname:
-      json['fullname'] ??
-          '${json['first_name'] ?? 'Unknown'} ${json['last_name'] ?? ''}'
-              .trim(),
+      username: json['username'] ?? '',  // <-- initialize username
+      fullname: (json['fullname'] ??
+          '${json['first_name'] ?? 'Unknown'} ${json['last_name'] ?? ''}')
+          .trim(),
       avatar: (json['avater'] ?? json['avatar_full'] ?? '').toString().trim(),
       age: int.tryParse(json['age']?.toString() ?? '0') ?? 0,
       country: json['country_txt'] ?? '',
@@ -127,6 +129,7 @@ class _CardMatchScreenState extends State<CardMatchScreen> {
   List<User> _dummyUsers() => [
     User(
       id: '101',
+      username: 'aisha123', // added
       fullname: 'Aisha',
       age: 24,
       avatar: 'https://i.pravatar.cc/400?img=10',
@@ -135,6 +138,7 @@ class _CardMatchScreenState extends State<CardMatchScreen> {
     ),
     User(
       id: '102',
+      username: 'sara456', // added
       fullname: 'Sara',
       age: 27,
       avatar: 'https://i.pravatar.cc/400?img=11',
@@ -143,6 +147,7 @@ class _CardMatchScreenState extends State<CardMatchScreen> {
     ),
     User(
       id: '103',
+      username: 'maya789', // added
       fullname: 'Maya',
       age: 22,
       avatar: 'https://i.pravatar.cc/400?img=12',
@@ -150,6 +155,7 @@ class _CardMatchScreenState extends State<CardMatchScreen> {
       bio: 'Photographer',
     ),
   ];
+
 
   void _handleLike(String userId) async {
     await SocialLoginService.addLikesDislikes(
@@ -892,7 +898,7 @@ class _DraggableCardState extends State<DraggableCard>
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.of(context).size.width * 0.86;
-    final h = MediaQuery.of(context).size.height * 0.72;
+    final h = MediaQuery.of(context).size.height * 0.60;
 
     final likeOpacity =
     (_position.dx > 0 ? (_position.dx / 150).clamp(0.0, 1.0) : 0.0)
@@ -908,6 +914,23 @@ class _DraggableCardState extends State<DraggableCard>
         child: GestureDetector(
           onPanUpdate: _onPanUpdate,
           onPanEnd: _onPanEnd,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RandomUserProfileScreen(
+                  user: {
+                    'id': widget.user.id,
+                    'username': widget.user.username,
+                    'avatar': widget.user.avatar,
+                    'fullName': widget.user.fullname,
+                    'country': widget.user.country,
+                  },
+                ),
+              ),
+            );
+          },
+
           child: Stack(
             children: [
               Material(
@@ -918,7 +941,6 @@ class _DraggableCardState extends State<DraggableCard>
                   height: h,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -949,7 +971,6 @@ class _DraggableCardState extends State<DraggableCard>
                         ),
                       ),
                       if (widget.user.country.isNotEmpty)
-
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -973,10 +994,10 @@ class _DraggableCardState extends State<DraggableCard>
                     // 💖 LIKE overlay — pink tint
                     if (likeOpacity > 0)
                       Opacity(
-                        opacity: likeOpacity * 0.35, // smooth transparency
+                        opacity: likeOpacity * 0.35,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF0881), // same as like button
+                            color: const Color(0xFFFF0881),
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
@@ -1000,7 +1021,7 @@ class _DraggableCardState extends State<DraggableCard>
                         opacity: dislikeOpacity * 0.35,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFFB602F5), // same as cancel button
+                            color: const Color(0xFFB602F5),
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
@@ -1012,7 +1033,7 @@ class _DraggableCardState extends State<DraggableCard>
                           alignment: Alignment.center,
                           child: Icon(
                             Icons.close,
-                            color: const Color(0xFFE3CDEA),
+                            color: Color(0xFFE3CDEA),
                             size: 100,
                           ),
                         ),
@@ -1020,13 +1041,13 @@ class _DraggableCardState extends State<DraggableCard>
                   ],
                 ),
               ),
-
             ],
           ),
         ),
       ),
     );
   }
+
 
   Widget _stamp(String text, Color color) {
     return Container(

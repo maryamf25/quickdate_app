@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../utils/user_details.dart';
 import 'social_login_service.dart';
 import 'chat_conversation_screen.dart';
-
+import 'trending_screen.dart';
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});
 
@@ -264,12 +264,23 @@ class _ChatsScreenState extends State<ChatsScreen> {
         const SizedBox(height: 8),
         Text('Start chatting with people you match with', style: TextStyle(color: Colors.grey[600])),
         const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () {
-            if (Navigator.canPop(context)) Navigator.pop(context);
-          },
-          child: const Text('Discover People'),
-        ),
+        // ElevatedButton(
+        //   onPressed: () {
+        //     Navigator.pop(context); // 👈 This will go back instead of pushing a new page
+        //   },
+        //   style: ElevatedButton.styleFrom(
+        //     backgroundColor: Colors.pinkAccent,
+        //     shape: RoundedRectangleBorder(
+        //       borderRadius: BorderRadius.circular(12),
+        //     ),
+        //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        //   ),
+        //   child: const Text(
+        //     'Discover People',
+        //     style: TextStyle(fontSize: 16, color: Colors.white),
+        //   ),
+        // )
+
       ]),
     );
   }

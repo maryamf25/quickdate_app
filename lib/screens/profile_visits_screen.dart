@@ -13,33 +13,7 @@ class _ProfileVisitsPageState extends State<ProfileVisitsPage> {
   List<Map<String, dynamic>> visits = [];
   bool isLoading = true;
 
-  // Dummy fallback visits
-  final List<Map<String, dynamic>> dummyVisits = [
-    {
-      'username': 'Ayesha Khan',
-      'location': 'Lahore, Pakistan',
-      'avater': 'https://randomuser.me/api/portraits/women/44.jpg',
-      'created_at': '2 hours ago',
-    },
-    {
-      'username': 'Ali Raza',
-      'location': 'Karachi, Pakistan',
-      'avater': 'https://randomuser.me/api/portraits/men/33.jpg',
-      'created_at': '1 day ago',
-    },
-    {
-      'username': 'Fatima Ahmed',
-      'location': 'Islamabad, Pakistan',
-      'avater': 'https://randomuser.me/api/portraits/women/21.jpg',
-      'created_at': '3 days ago',
-    },
-    {
-      'username': 'Usman Malik',
-      'location': 'Faisalabad, Pakistan',
-      'avater': 'https://randomuser.me/api/portraits/men/72.jpg',
-      'created_at': '5 days ago',
-    },
-  ];
+
 
   @override
   void initState() {
@@ -57,12 +31,11 @@ class _ProfileVisitsPageState extends State<ProfileVisitsPage> {
 
       setState(() {
         // Use API data if available, otherwise fallback to dummy data
-        visits = result.isNotEmpty ? result : dummyVisits;
+        visits = result;
         isLoading = false;
       });
     } catch (e) {
       setState(() {
-        visits = dummyVisits; // fallback on error
         isLoading = false;
       });
 
@@ -79,7 +52,19 @@ class _ProfileVisitsPageState extends State<ProfileVisitsPage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : visits.isEmpty
-          ? const Center(child: Text('No visits yet.'))
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.visibility_off, size: 50, color: Colors.grey),
+            SizedBox(height: 12),
+            Text(
+              'No visits yet',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      )
           : ListView.builder(
         itemCount: visits.length,
         itemBuilder: (context, index) {

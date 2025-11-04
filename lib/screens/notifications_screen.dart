@@ -310,56 +310,163 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     });
     print('🔍 [_filterNotifications] tab=$_currentTabIndex filtered=${_filteredNotifications.length} all=${_allNotifications.length} isPremium=$_isPremiumUser');
   }
-
-  Future<void> _handleRequestAction({required bool accept, required dynamic notification}) async {
+  Future<void> _handleRequestAction({
+    required bool accept,
+    required dynamic notification,
+  }) async {
     try {
+      print('🔹 _handleRequestAction called | accept=$accept');
+      print('🔸 Notification object: $notification');
+
       final String? accessToken = await SocialLoginService.getAccessToken();
+      print('🔑 Access Token: $accessToken');
+
       if (accessToken == null) {
+        print('❌ No access token found.');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Not authenticated')),
         );
         return;
       }
-      final int notifierId = int.tryParse(notification['notifier_id'].toString()) ?? 0;
+
+      final int notifierId =
+          int.tryParse(notification['notifier_id'].toString()) ?? 0;
+      print('👤 Notifier ID: $notifierId');
+
       if (notifierId <= 0) {
+        print('⚠️ Invalid notifier ID.');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Invalid request user')),
         );
         return;
       }
+
+      // If declined → skip API call, just remove locally.
+      if (!accept) {
+        print('🟠 Decline selected → removing notification locally.');
+        setState(() {
+          _allNotifications
+              .removeWhere((n) => n['id'].toString() == notification['id'].toString());
+        });
+        _filterNotifications();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request declined')),
+        );
+        return;
+      }
+
+      // ✅ API call for accepting friend request
+      final url = Uri.parse('${SocialLoginService.baseUrl}/users/approve_friend_request');
+      print('🌐 Sending POST → $url');
+      print('📦 Request Body: { access_token: $accessToken, uid: $notifierId }');
+
       final resp = await http.post(
-        Uri.parse('https://backend.staralign.me/endpoint/v1/models/users/messages_requests'),
+        url,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: {
           'access_token': accessToken,
-          'user_id': notifierId.toString(),
-          'type': accept ? 'accept' : 'decline',
+          'uid': notifierId.toString(),
         },
       );
+
+      print('📡 Response Status Code: ${resp.statusCode}');
+      print('🧾 Raw Response Body: ${resp.body}');
+
       String raw = resp.body;
       if (raw.contains('<')) {
+        print('⚙️ Stripping HTML junk from response...');
         final s = raw.indexOf('{');
         final e = raw.lastIndexOf('}');
         if (s != -1 && e != -1 && e > s) raw = raw.substring(s, e + 1);
       }
+
       final Map<String, dynamic> data = jsonDecode(raw);
-      final ok = (resp.statusCode == 200) && ((data['status'] ?? data['code']) == 200);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? (accept ? 'Request accepted' : 'Request declined') : 'Action failed')),
-      );
-      if (ok) {
-        // Remove this notification from current list
+      print('📦 Decoded Response JSON: $data');
+
+      final int status = data['status'] ?? data['code'] ?? 0;
+      print('✅ Parsed Status Code: $status');
+
+      if (resp.statusCode == 200 && status == 200) {
+        print('🎉 Friend request accepted successfully!');
+
         setState(() {
-          _allNotifications.removeWhere((n) => n['id'].toString() == notification['id'].toString());
+          _allNotifications
+              .removeWhere((n) => n['id'].toString() == notification['id'].toString());
         });
         _filterNotifications();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Friend request accepted')),
+        );
+      } else {
+        final errorMsg = data['errors']?['error_text']?.toString() ??
+            data['message']?.toString() ??
+            'Action failed';
+        print('⚠️ API returned failure: $errorMsg');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $errorMsg')),
+        );
       }
-    } catch (e) {
+    } catch (e, stack) {
+      print('💥 Exception: $e');
+      print('🧩 Stack trace: $stack');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Action error: $e')),
       );
     }
   }
+
+
+  // Future<void> _handleRequestAction({required bool accept, required dynamic notification}) async {
+  //   try {
+  //     final String? accessToken = await SocialLoginService.getAccessToken();
+  //     if (accessToken == null) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Not authenticated')),
+  //       );
+  //       return;
+  //     }
+  //     final int notifierId = int.tryParse(notification['notifier_id'].toString()) ?? 0;
+  //     if (notifierId <= 0) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Invalid request user')),
+  //       );
+  //       return;
+  //     }
+  //     final resp = await http.post(
+  //       Uri.parse('https://backend.staralign.me/endpoint/v1/models/users/messages_requests'),
+  //       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+  //       body: {
+  //         'access_token': accessToken,
+  //         'user_id': notifierId.toString(),
+  //         'type': accept ? 'accept' : 'decline',
+  //       },
+  //     );
+  //     String raw = resp.body;
+  //     if (raw.contains('<')) {
+  //       final s = raw.indexOf('{');
+  //       final e = raw.lastIndexOf('}');
+  //       if (s != -1 && e != -1 && e > s) raw = raw.substring(s, e + 1);
+  //     }
+  //     final Map<String, dynamic> data = jsonDecode(raw);
+  //     final ok = (resp.statusCode == 200) && ((data['status'] ?? data['code']) == 200);
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text(ok ? (accept ? 'Request accepted' : 'Request declined') : 'Action failed')),
+  //     );
+  //     if (ok) {
+  //       // Remove this notification from current list
+  //       setState(() {
+  //         _allNotifications.removeWhere((n) => n['id'].toString() == notification['id'].toString());
+  //       });
+  //       _filterNotifications();
+  //     }
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text('Action error: $e')),
+  //     );
+  //   }
+  // }
 
   String _formatTime(dynamic timestamp) {
     try {
@@ -479,7 +586,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 ),
                 const SizedBox(width: 12),
                 // Content
-                Expanded(
+                Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,

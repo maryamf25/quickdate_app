@@ -6,19 +6,44 @@ class MediaFile {
   String? urlFile;
   String isVideo;
 
-  MediaFile({this.id, this.full, this.videoFile, this.avater, this.urlFile, this.isVideo = "0"});
+  // New fields from API
+  String? isPrivate;
+  String? privateFileFull;
+  String? privateFileAvater;
+  String? isConfirmed;
+  String? isApproved;
+
+  MediaFile({
+    this.id,
+    this.full,
+    this.videoFile,
+    this.avater,
+    this.urlFile,
+    this.isVideo = "0",
+    this.isPrivate,
+    this.privateFileFull,
+    this.privateFileAvater,
+    this.isConfirmed,
+    this.isApproved,
+  });
 
   factory MediaFile.fromJson(Map<String, dynamic> json) {
     return MediaFile(
-      id: json['id'],
+      id: json['id']?.toString(),
       full: json['full'],
       videoFile: json['video_file'],
       avater: json['avater'],
       urlFile: json['url_file'],
-      isVideo: json['is_video'] ?? "0",
+      isVideo: json['is_video']?.toString() ?? "0",
+      isPrivate: json['is_private']?.toString(),
+      privateFileFull: json['private_file_full'],
+      privateFileAvater: json['private_file_avater'],
+      isConfirmed: json['is_confirmed']?.toString(),
+      isApproved: json['is_approved']?.toString(),
     );
   }
 }
+
 class MyUserInfo {
   String firstName;
   String lastName;
