@@ -1072,8 +1072,9 @@ class _TrendingScreenState extends State<TrendingScreen> with TickerProviderStat
                       nameAndAge: "${user['username'] ?? 'Unknown'}, ${user['age'] ?? '--'}",
                       imageUrl: user['avater']?.toString() ?? '',
                       isOnline: user['online'] == "1" || user['online'] == 1,
+                      onCardTap: () => _openUserProfile(user),
+                      onLikePressed: () => _openUserProfile(user),
                     );
-
 
                       },
                   childCount: _filteredFriends.length,
@@ -1505,6 +1506,7 @@ class UserProfileCard extends StatelessWidget {
   final String imageUrl;
   final bool isOnline;
   final VoidCallback? onLikePressed;
+  final VoidCallback? onCardTap;
 
   const UserProfileCard({
     super.key,
@@ -1512,83 +1514,87 @@ class UserProfileCard extends StatelessWidget {
     this.imageUrl = '',
     this.isOnline = false,
     this.onLikePressed,
+    this.onCardTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Stack(
-        children: [
-          // 🖼 image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              height: double.infinity,
-              width: double.infinity,
-              errorBuilder: (_, __, ___) =>
-                  Container(color: Colors.grey[300]),
-            ),
-          ),
-
-          // 🖤 overlay for gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.black.withOpacity(0.5),
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.5),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+    return GestureDetector(
+      onTap: onCardTap,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Stack(
+          children: [
+            // 🖼 image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                height: double.infinity,
+                width: double.infinity,
+                errorBuilder: (_, __, ___) =>
+                    Container(color: Colors.grey[300]),
               ),
             ),
-          ),
 
-          // ❤️ like button top-right
-          Positioned(
-            top: 10,
-            right: 10,
-            child: GestureDetector(
-              onTap: onLikePressed,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  borderRadius: BorderRadius.circular(20),
+            // 🖤 overlay for gradient
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.black.withOpacity(0.5),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.5),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
-                child:
-                const Icon(Icons.favorite_border, color: Colors.white, size: 20),
               ),
             ),
-          ),
 
-          // 👤 name & age bottom-left
-          Positioned(
-            left: 12,
-            bottom: 12,
-            child: Text(
-              nameAndAge,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+            // ❤️ like button top-right
+            Positioned(
+              top: 10,
+              right: 10,
+              child: GestureDetector(
+                onTap: onLikePressed,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child:
+                  const Icon(Icons.favorite_border, color: Colors.white, size: 20),
+                ),
               ),
             ),
-          ),
 
-          // 🟢 online indicator
-          if (isOnline)
-            const Positioned(
-              right: 16,
-              bottom: 16,
-              child: _OnlineDot(),
+            // 👤 name & age bottom-left
+            Positioned(
+              left: 12,
+              bottom: 12,
+              child: Text(
+                nameAndAge,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-        ],
+
+            // 🟢 online indicator
+            if (isOnline)
+              const Positioned(
+                right: 16,
+                bottom: 16,
+                child: _OnlineDot(),
+              ),
+          ],
+        ),
       ),
     );
   }

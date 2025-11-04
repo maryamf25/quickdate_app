@@ -43,6 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   Brightness? _platformBrightness;
   late final List<Widget> _screens;
+  // Key to access the NotificationsScreen state so we can manually refresh.
+  final GlobalKey _notificationsKey = GlobalKey();
 
   @override
   void initState() {
@@ -50,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _screens = [
       const CardMatchScreen(),      // Index 0: Match
       const TrendingScreen(),       // Index 1: Trending
-      const NotificationsScreen(),  // Index 2: Alerts
+      NotificationsScreen(key: _notificationsKey),  // Index 2: Alerts (attach key)
       const ChatsScreen(),          // Index 3: Chats
       const MainProfileScreen(),    // Index 4: Settings
     ];
@@ -116,7 +118,22 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFFBF01FD),
         unselectedItemColor: Colors.grey,
-        onTap: (i) => setState(() => _currentIndex = i),
+        onTap: (i) {
+          setState(() => _currentIndex = i);
+          // If user navigates to Notifications tab, force a refresh from server
+          if (i == 2) {
+            try {
+              final state = _notificationsKey.currentState;
+              // call refreshNotifications if available
+              if (state != null) {
+                // Use dynamic to avoid private type issues
+                (state as dynamic).refreshNotifications();
+              }
+            } catch (e) {
+              // ignore if state method not available
+            }
+          }
+        },
         items: [
           BottomNavigationBarItem(icon: const Icon(Icons.favorite), label: AppLocalizations.of(context)!.tab_match),
           BottomNavigationBarItem(icon: const Icon(Icons.trending_up), label: AppLocalizations.of(context)!.tab_trending),
@@ -961,3 +978,4 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 }
+

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'social_login_service.dart';
 import '../utils/app_settings.dart';
 import '../utils/user_details.dart';
+import 'home_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -28,6 +29,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   // Premium gating
   bool _isPremiumUser = false;
   bool _checkedPremium = false; // whether we've checked premium status
+  // Track request IDs currently being processed to prevent duplicate accepts
+  final Set<String> _processingRequests = <String>{};
 
   @override
   void initState() {
@@ -278,7 +281,15 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   bool _isRequestType(String type) {
     final t = type.toLowerCase();
-    return t.contains('friend_request');
+    // Consider it a request only when it's an actual pending friend request.
+    // Exclude types that indicate the request was already accepted/handled
+    // (for example: 'friend_request_accepted', 'friend_request_accepted_by').
+    if (!t.contains('friend_request')) return false;
+    if (t.contains('accept') || t.contains('accepted') || t.contains('declin') || t.contains('handled')) {
+      return false;
+    }
+    // common names that indicate pending request
+    return t == 'friend_request' || t.endsWith('_request') || t.contains('friend_request_');
   }
 
   void _filterNotifications() {
@@ -315,6 +326,14 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     required dynamic notification,
   }) async {
     try {
+      final String idStr = notification['id']?.toString() ?? '';
+      if (idStr.isNotEmpty && _processingRequests.contains(idStr)) {
+        print('Already processing request $idStr, ignoring duplicate tap.');
+        return;
+      }
+      if (idStr.isNotEmpty) {
+        setState(() => _processingRequests.add(idStr));
+      }
       print('🔹 _handleRequestAction called | accept=$accept');
       print('🔸 Notification object: $notification');
 
@@ -326,6 +345,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Not authenticated')),
         );
+        if (idStr.isNotEmpty) setState(() => _processingRequests.remove(idStr));
         return;
       }
 
@@ -338,6 +358,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Invalid request user')),
         );
+        if (idStr.isNotEmpty) setState(() => _processingRequests.remove(idStr));
         return;
       }
 
@@ -352,6 +373,19 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Request declined')),
         );
+        // Attempt to remove the notification server-side as well
+        try {
+          final id = notification['id']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            final removed = await _removeNotificationOnServer(id);
+            if (!removed) {
+              debugPrint('⚠️ Could not remove notification $id from server after decline');
+            }
+          }
+        } catch (e) {
+          debugPrint('Error removing notification on server after decline: $e');
+        }
+        if (idStr.isNotEmpty) setState(() => _processingRequests.remove(idStr));
         return;
       }
 
@@ -386,6 +420,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       final int status = data['status'] ?? data['code'] ?? 0;
       print('✅ Parsed Status Code: $status');
 
+      // If server reports success, remove locally. Also handle "already accepted" gracefully.
+      final String message = (data['message'] ?? data['msg'] ?? '').toString();
       if (resp.statusCode == 200 && status == 200) {
         print('🎉 Friend request accepted successfully!');
 
@@ -398,15 +434,64 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Friend request accepted')),
         );
-      } else {
-        final errorMsg = data['errors']?['error_text']?.toString() ??
-            data['message']?.toString() ??
-            'Action failed';
-        print('⚠️ API returned failure: $errorMsg');
-
+        // Ensure backend notification is removed
+        try {
+          final id = notification['id']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            final removed = await _removeNotificationOnServer(id);
+            if (!removed) {
+              debugPrint('⚠️ Could not remove notification $id from server after accept');
+            }
+          }
+        } catch (e) {
+          debugPrint('Error removing notification on server after accept: $e');
+        }
+      } else if (message.toLowerCase().contains('already') || message.toLowerCase().contains('accepted')) {
+        // Backend says it's already accepted — remove locally to avoid duplicate actions.
+        print('ℹ️ Server indicates request already accepted: $message');
+        setState(() {
+          _allNotifications
+              .removeWhere((n) => n['id'].toString() == notification['id'].toString());
+        });
+        _filterNotifications();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $errorMsg')),
+          SnackBar(content: Text(message.isNotEmpty ? message : 'Already accepted')),
         );
+        // Try to clean up the notification on server when it's already accepted
+        try {
+          final id = notification['id']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            final removed = await _removeNotificationOnServer(id);
+            if (!removed) debugPrint('⚠️ Could not remove notification $id from server (already accepted)');
+          }
+        } catch (e) {
+          debugPrint('Error removing notification on server (already accepted): $e');
+        }
+      } else {
+        // Also handle common server responses where the request is no longer present
+        // (for example: 400 with error_text "No friend requests found") — treat as already-processed.
+        final String errorText = (data['errors']?['error_text'] ?? '').toString().toLowerCase();
+        final String errorId = (data['errors']?['error_id'] ?? '').toString();
+        if (errorText.contains('no friend request') || errorText.contains('no friend requests') || errorId == '25') {
+          print('ℹ️ Server indicates no friend request exists (treated as already processed): $errorText');
+          setState(() {
+            _allNotifications
+                .removeWhere((n) => n['id'].toString() == notification['id'].toString());
+          });
+          _filterNotifications();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorText.isNotEmpty ? errorText : 'Request already handled')),
+          );
+        } else {
+          final errorMsg = data['errors']?['error_text']?.toString() ??
+              data['message']?.toString() ??
+              'Action failed';
+          print('⚠️ API returned failure: $errorMsg');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed: $errorMsg')),
+          );
+        }
       }
     } catch (e, stack) {
       print('💥 Exception: $e');
@@ -414,9 +499,78 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Action error: $e')),
       );
+    } finally {
+      // Ensure processing flag is cleared so user can interact again
+      final String idStr = notification['id']?.toString() ?? '';
+      if (idStr.isNotEmpty) {
+        setState(() => _processingRequests.remove(idStr));
+      }
     }
   }
 
+  // Attempts to remove/mark a notification on the server. Many backends
+  // expose different endpoints or parameter names, so try a few reasonable
+  // candidates. Returns true if any attempt reported success (code == 200).
+  Future<bool> _removeNotificationOnServer(String notificationId) async {
+    try {
+      final String? token = await SocialLoginService.getAccessToken();
+      if (token == null) return false;
+
+      final base = SocialLoginService.baseUrl; // already contains /endpoint/v1/models
+      final candidates = <String>[
+        '/notifications/delete',
+        '/notifications/delete_notification',
+        '/notifications/remove_notification',
+        '/notifications/remove',
+        '/notifications/mark_as_read',
+        '/notifications/mark_as_seen',
+        '/notifications/seen',
+      ];
+
+      for (final path in candidates) {
+        try {
+          final uri = Uri.parse('$base$path');
+          // Try two common parameter names: 'id' and 'notification_id'
+          final resp1 = await http.post(uri,
+              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+              body: {
+                'access_token': token,
+                'id': notificationId,
+              });
+          if (resp1.statusCode == 200) {
+            try {
+              final data = jsonDecode(resp1.body);
+              if ((data['code'] ?? data['status']) == 200) return true;
+            } catch (_) {
+              // If not JSON, treat HTTP 200 as success
+              return true;
+            }
+          }
+
+          final resp2 = await http.post(uri,
+              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+              body: {
+                'access_token': token,
+                'notification_id': notificationId,
+              });
+          if (resp2.statusCode == 200) {
+            try {
+              final data = jsonDecode(resp2.body);
+              if ((data['code'] ?? data['status']) == 200) return true;
+            } catch (_) {
+              return true;
+            }
+          }
+        } catch (e) {
+          debugPrint('Attempt to $path failed: $e');
+          // try next
+        }
+      }
+    } catch (e) {
+      debugPrint('Error in _removeNotificationOnServer: $e');
+    }
+    return false;
+  }
 
   // Future<void> _handleRequestAction({required bool accept, required dynamic notification}) async {
   //   try {
@@ -527,7 +681,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     final isRequest = _isRequestType(type);
 
     return Container(
-      height: 70,
+      height: 80,
       margin: const EdgeInsets.symmetric(vertical: 1),
       decoration: BoxDecoration(
         color: seen ? Colors.transparent : Colors.blue.withValues(alpha: 0.05),
@@ -602,7 +756,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4.5),
+                      const SizedBox(height: 2.0),
                       // Notification text
                       Text(
                         text,
@@ -618,65 +772,71 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   ),
                 ),
                 // Time and Action Buttons
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Time (hide when it's a request, to match the native app behavior)
-                    if (!isRequest)
-                      Text(
-                        _formatTime(timestamp),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w600,
+                Flexible(
+                  flex: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Time (hide when it's a request, to match the native app behavior)
+                      if (!isRequest)
+                        Text(
+                          _formatTime(timestamp),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    // Action Buttons (for requests)
-                    if (isRequest)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Accept Button
-                          Container(
-                            width: 35,
-                            height: 35,
-                            margin: const EdgeInsets.only(right: 7),
-                            decoration: const BoxDecoration(
-                              color: Colors.purple,
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.check,
-                                color: Colors.white,
-                                size: 16,
+                      // Action Buttons (for requests)
+                      if (isRequest)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Accept Button
+                            Container(
+                              width: 35,
+                              height: 35,
+                              margin: const EdgeInsets.only(right: 7),
+                              decoration: const BoxDecoration(
+                                color: Colors.purple,
+                                shape: BoxShape.circle,
                               ),
-                              onPressed: () => _handleRequestAction(accept: true, notification: notification),
-                              padding: EdgeInsets.zero,
-                            ),
-                          ),
-                          // Decline Button
-                          Container(
-                            width: 35,
-                            height: 35,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[400],
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.close,
-                                color: Colors.white,
-                                size: 16,
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                onPressed: _processingRequests.contains(notification['id']?.toString() ?? '')
+                                    ? null
+                                    : () => _handleRequestAction(accept: true, notification: notification),
+                                padding: EdgeInsets.zero,
                               ),
-                              onPressed: () => _handleRequestAction(accept: false, notification: notification),
-                              padding: EdgeInsets.zero,
                             ),
-                          ),
-                        ],
-                      ),
-                  ],
+                            // Decline Button
+                            Container(
+                              width: 35,
+                              height: 35,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[400],
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                onPressed: () => _handleRequestAction(accept: false, notification: notification),
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -782,6 +942,55 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
   }
 
+  // Public method to allow parent to trigger a manual refresh
+  Future<void> refreshNotifications() async {
+    await _fetchNotifications();
+  }
+
+  // Remove all pending request notifications locally and attempt to remove them on the server.
+  Future<void> _clearAllRequests() async {
+    if (_allNotifications.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No notifications to clear')));
+      return;
+    }
+
+    final pending = _allNotifications.where((n) => _isRequestType((n['type'] ?? '').toString())).toList();
+    if (pending.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No pending requests to clear')));
+      return;
+    }
+
+    int removedLocal = 0;
+    int removedServer = 0;
+
+    // Remove locally first for immediate UX
+    setState(() {
+      for (final n in pending) {
+        _allNotifications.removeWhere((x) => x['id'].toString() == n['id'].toString());
+        removedLocal++;
+      }
+      _filterNotifications();
+    });
+
+    // Try removing on server in background
+    for (final n in pending) {
+      final id = n['id']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      try {
+        final ok = await _removeNotificationOnServer(id);
+        if (ok) removedServer++;
+      } catch (e) {
+        debugPrint('Error removing notification $id on server: $e');
+      }
+    }
+
+    if (!mounted) return;
+    final msg = 'Cleared $removedLocal local requests, $removedServer removed from server';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   @override
   Widget build(BuildContext context) {
     // Gate build method while we determine premium status
@@ -831,14 +1040,22 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                ),
                child: Column(
                  children: [
-                   // Toolbar
-                   SizedBox(
-                     height: 48,
+                   // Toolbar (use padding instead of fixed height to avoid overflow
+                   // when available vertical space is constrained)
+                   Padding(
+                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                      child: Row(
+                       crossAxisAlignment: CrossAxisAlignment.center,
                        children: [
                          IconButton(
                            icon: const Icon(Icons.arrow_back),
-                           onPressed: () => Navigator.of(context).pop(),
+                           onPressed: () {
+                             // Ensure we return to the app's HomeScreen instead of
+                             // potentially navigating back to the Login screen.
+                             Navigator.of(context).pushReplacement(
+                               MaterialPageRoute(builder: (_) => const HomeScreen()),
+                             );
+                           },
                            color: Colors.black87,
                          ),
                          const SizedBox(width: 6),
@@ -869,6 +1086,14 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                                ),
                              ),
                            ),
+                        // Clear Requests button for debugging/cleanup
+                        IconButton(
+                          tooltip: 'Clear requests',
+                          icon: const Icon(Icons.delete_sweep, color: Colors.black54),
+                          onPressed: () async {
+                            await _clearAllRequests();
+                          },
+                        ),
                        ],
                      ),
                    ),
@@ -958,4 +1183,3 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
    }
  }
-

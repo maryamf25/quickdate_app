@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/user_details.dart';
 import 'social_login_service.dart';
 import 'chat_conversation_screen.dart';
@@ -34,29 +33,12 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
   }
 
   Future<void> _initializeStates() async {
-    // First load cached friend request status for immediate UI feedback
-    final cachedFriendStatus = await _loadFriendRequestStatus(widget.user['id'].toString());
-    if (cachedFriendStatus != null) {
-      setState(() {
-        isFriendAdded = cachedFriendStatus;
-      });
-      print('💾 Using cached friend status: $cachedFriendStatus');
-    }
-
     await Future.wait([
       _checkIfFavorite(),
+      _checkIfFriend(),
       _checkIfLiked(),
       _incrementProfileVisit(),
     ]);
-
-    // Check friends first
-    await _checkIfFriend();
-
-    // If not already friends, check for pending friend requests
-    if (!isFriendAdded) {
-      await _checkPendingFriendRequest();
-    }
-
     setState(() => isLoading = false);
   }
 
@@ -121,20 +103,9 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
       );
 
       if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in favorites response.');
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
+        final data = json.decode(response.body);
         final List favorites = data['data'] ?? [];
-        print("🌟 Favorites: $favorites");
+        print("Favorites: $favorites");
         final targetUserId = widget.user['id'];
         final exists = favorites.any(
           (user) => (user['userData']?['id'] ?? user['id']).toString() == targetUserId.toString(),
@@ -142,7 +113,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
         setState(() {
           isFavorite = exists;
         });
-        print('🌟 User ${widget.user['username']} fav status: $isFavorite');
+        print('User ${widget.user['username']} fav status: $isFavorite');
       } else {
         print('Error fetching favorites: ${response.body}');
       }
@@ -187,218 +158,19 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
       );
 
       if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in friends response.');
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
+        final data = json.decode(response.body);
         final List friends = data['data'] ?? [];
         final currentUserId = widget.user['id'];
-        print('👥 Checking friends for user ID: $currentUserId');
-        print('👥 Friends list: $friends');
-
-        // Check if user is already a friend or has pending request
-        final exists = friends.any((friend) {
-          // Handle different friend data structures
-          final friendId = friend['id'] ?? friend['user_id'] ?? friend['friend_id'];
-          return friendId.toString() == currentUserId.toString();
-        });
+        final exists = friends.any((friend) => friend['id'] == currentUserId);
 
         setState(() {
           isFriendAdded = exists;
         });
-        print('👥 User ${widget.user['username']} friend status: $isFriendAdded');
       } else {
         print('Error fetching friends: ${response.body}');
       }
     } catch (e) {
       print('Exception fetching friends: $e');
-    }
-  }
-
-  // Check if there's a pending friend request (both incoming and outgoing)
-  Future<void> _checkPendingFriendRequest() async {
-    // First check incoming friend requests
-    await _checkIncomingFriendRequests();
-
-    // If no incoming request found and still not friends, check outgoing requests
-    if (!isFriendAdded) {
-      await _checkOutgoingFriendRequests();
-    }
-  }
-
-  // Check incoming friend requests (requests sent to us)
-  Future<void> _checkIncomingFriendRequests() async {
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in incoming friend requests response.');
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        final List requests = data['data'] ?? [];
-        final currentUserId = widget.user['id'];
-        print('👥 Checking incoming friend requests for user ID: $currentUserId');
-        print('👥 Incoming friend requests list: $requests');
-
-        // Check if there's an incoming request from this user
-        final hasIncomingRequest = requests.any((request) {
-          // Handle different request data structures
-          final requesterId = request['requester_id'] ?? request['from_id'] ?? request['user_id'];
-
-          return requesterId.toString() == currentUserId.toString();
-        });
-
-        if (hasIncomingRequest) {
-          setState(() {
-            isFriendAdded = true;
-          });
-          // Save to local cache for persistence
-          await _saveFriendRequestStatus(widget.user['id'].toString(), true);
-          print('👥 Found incoming friend request from user: ${widget.user['username']}');
-        }
-      } else {
-        print('Error fetching incoming friend requests: ${response.body}');
-      }
-    } catch (e) {
-      print('Exception fetching incoming friend requests: $e');
-    }
-  }
-
-  // Check outgoing friend requests (requests we sent)
-  Future<void> _checkOutgoingFriendRequests() async {
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_sent_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in outgoing friend requests response.');
-          // If the API doesn't exist, try alternative method
-          await _checkAlternativeOutgoingRequests();
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        final List requests = data['data'] ?? [];
-        final currentUserId = widget.user['id'];
-        print('👥 Checking outgoing friend requests for user ID: $currentUserId');
-        print('👥 Outgoing friend requests list: $requests');
-
-        // Check if we sent a request to this user
-        final hasSentRequest = requests.any((request) {
-          // Handle different request data structures
-          final recipientId = request['recipient_id'] ?? request['to_id'] ?? request['target_id'] ?? request['user_id'];
-
-          return recipientId.toString() == currentUserId.toString();
-        });
-
-        if (hasSentRequest) {
-          setState(() {
-            isFriendAdded = true;
-          });
-          // Save to local cache for persistence
-          await _saveFriendRequestStatus(widget.user['id'].toString(), true);
-          print('👥 Found outgoing friend request to user: ${widget.user['username']}');
-        }
-      } else {
-        print('Error fetching outgoing friend requests: ${response.body}');
-        // Try alternative method if this API doesn't work
-        await _checkAlternativeOutgoingRequests();
-      }
-    } catch (e) {
-      print('Exception fetching outgoing friend requests: $e');
-      // Try alternative method
-      await _checkAlternativeOutgoingRequests();
-    }
-  }
-
-  // Alternative method to check outgoing requests using the same API but with different logic
-  Future<void> _checkAlternativeOutgoingRequests() async {
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in alternative friend requests response.');
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        final List requests = data['data'] ?? [];
-        final currentUserId = widget.user['id'];
-        print('👥 Alternative check for outgoing requests to user ID: $currentUserId');
-        print('👥 All friend requests: $requests');
-
-        // Check if we sent a request to this user (looking for our user ID as sender)
-        final hasSentRequest = requests.any((request) {
-          final requesterId = request['requester_id'] ?? request['from_id'] ?? request['user_id'];
-          final recipientId = request['recipient_id'] ?? request['to_id'] ?? request['target_id'];
-
-          // Check if we are the requester and this user is the recipient
-          return requesterId.toString() == UserDetails.userId.toString() &&
-                 recipientId.toString() == currentUserId.toString();
-        });
-
-        if (hasSentRequest) {
-          setState(() {
-            isFriendAdded = true;
-          });
-          // Save to local cache for persistence
-          await _saveFriendRequestStatus(widget.user['id'].toString(), true);
-          print('👥 Found outgoing friend request (alternative) to user: ${widget.user['username']}');
-        }
-      }
-    } catch (e) {
-      print('Exception in alternative outgoing friend requests check: $e');
     }
   }
 
@@ -531,18 +303,13 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     }
   }
 
-  // Toggle friend with improved error handling and visual feedback
+  // Toggle friend with improved error handling
   Future<void> _toggleFriend() async {
     setState(() {
       isFriendLoading = true;
     });
 
-    // Always use add_friend API - it should handle both adding and removing requests
     final apiUrl = '${SocialLoginService.baseUrl}/users/add_friend';
-
-    print('👥 Toggle friend API URL: $apiUrl');
-    print('👥 Current friend status: $isFriendAdded');
-    print('👥 Target user ID: ${widget.user['id']}');
 
     try {
       final response = await http.post(
@@ -554,168 +321,56 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
         },
       );
 
-      print('👥 HTTP Status Code: ${response.statusCode}');
-      print('👥 Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
+        final data = json.decode(response.body);
+        print(data['message'] ?? data['errors']?['error_text'] ?? 'Unknown');
 
-        if (startIndex == -1 || endIndex == -1) {
-          print('👥 No valid JSON found in toggle friend response.');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Invalid server response. Please try again.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              margin: EdgeInsets.all(16),
-            ),
-          );
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        print('👥 Parsed JSON: $data');
-
-        // Check for different possible success indicators - be more aggressive about success detection
-        bool isSuccess = false;
-        String? errorMessage;
-
-        // Try different response formats - be more lenient with success detection
-        if (data['code'] == 200 || data['status'] == 200) {
-          isSuccess = true;
-        } else if (data['api_status'] == 200) {
-          isSuccess = true;
-        } else if (data.containsKey('success') && data['success'] == true) {
-          isSuccess = true;
-        } else if (data.containsKey('message')) {
-          final message = data['message'].toString().toLowerCase();
-          if (message.contains('success') || message.contains('sent') || message.contains('added') || message.contains('request')) {
-            isSuccess = true;
-          }
-        } else if (!data.containsKey('errors') && !data.containsKey('error')) {
-          // If no explicit errors and we get any reasonable response, assume success
-          isSuccess = true;
-        }
-
-        // Only consider it an error if there are explicit error messages
-        if (data.containsKey('errors') && data['errors'] != null) {
-          final errors = data['errors'];
-          if (errors is Map && errors.containsKey('error_text') && errors['error_text'] != null && errors['error_text'] != '') {
-            errorMessage = errors['error_text'];
-            // Only fail if the error is meaningful
-            if (!errorMessage!.toLowerCase().contains('already') && !errorMessage.toLowerCase().contains('exist')) {
-              isSuccess = false;
-            }
-          }
-        } else if (data.containsKey('error') && data['error'] != null && data['error'] != '') {
-          errorMessage = data['error'];
-          // Only fail if the error is meaningful
-          if (!errorMessage!.toLowerCase().contains('already') && !errorMessage.toLowerCase().contains('exist')) {
-            isSuccess = false;
-          }
-        }
-
-        print('👥 isSuccess: $isSuccess, errorMessage: $errorMessage');
-
-        if (isSuccess) {
-          // Update the state immediately for visual feedback
+        // Only update state if API call was successful
+        if (data['code'] == 200) {
           setState(() {
             isFriendAdded = !isFriendAdded;
           });
+          print(
+            "Friend status updated: $isFriendAdded for user: ${widget.user['username'].toString()}",
+          );
 
-          // Save to local cache for persistence
-          await _saveFriendRequestStatus(widget.user['id'].toString(), isFriendAdded);
-
-          print('👥 Friend status updated successfully: $isFriendAdded for user: ${widget.user['username']}');
-
-          // If we just sent a friend request (changed from false to true), verify it was actually sent
-          if (isFriendAdded && apiUrl.contains('add_friend')) {
-            print('🔍 Verifying friend request was sent...');
-            final verified = await _verifyFriendRequestSent(widget.user['id'].toString());
-            if (!verified) {
-              print('⚠️ Friend request verification failed - reverting state');
-              setState(() {
-                isFriendAdded = false;
-              });
-              await _saveFriendRequestStatus(widget.user['id'].toString(), false);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('⚠️ Friend request may not have been sent. Please try again.'),
-                  backgroundColor: Colors.orange,
-                  duration: Duration(seconds: 3),
-                  behavior: SnackBarBehavior.floating,
-                  margin: EdgeInsets.all(16),
-                ),
-              );
-              return;
-            }
-          }
-
-          // Show success message with better styling
+          // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                isFriendAdded ? '👫 Friend request sent successfully' : '💔 Friend request cancelled',
+                isFriendAdded ? 'Friend request sent' : 'Friend request cancelled',
               ),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
             ),
           );
         } else {
           // API returned error
-          print('👥 API Error: $errorMessage');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('❌ ${errorMessage ?? 'Failed to update friend request'}'),
+              content: Text(data['errors']?['error_text'] ?? 'Failed to update friend request'),
               backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              duration: const Duration(seconds: 2),
             ),
           );
         }
       } else {
         // HTTP error
-        print('👥 HTTP Error: ${response.statusCode}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Network error (${response.statusCode}). Please try again.'),
+          const SnackBar(
+            content: Text('Network error. Please try again.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+            duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      print('👥 Exception toggling friend: $e');
+      print('Exception toggling friend: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ An error occurred: ${e.toString()}'),
+        const SnackBar(
+          content: Text('An error occurred. Please try again.'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+          duration: Duration(seconds: 2),
         ),
       );
     } finally {
@@ -774,10 +429,6 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
         ? '${SocialLoginService.baseUrl}/users/delete_like'
         : '${SocialLoginService.baseUrl}/users/add_likes';
 
-    print('❤️ Toggle like API URL: $apiUrl');
-    print('❤️ Current like status: $isLiked');
-    print('❤️ Target user ID: ${widget.user['id']}');
-
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
@@ -793,120 +444,56 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
               },
       );
 
-      print('❤️ HTTP Status Code: ${response.statusCode}');
-      print('❤️ Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
+        final data = json.decode(response.body);
+        print(data['message'] ?? data['errors']?['error_text'] ?? 'Unknown');
 
-        if (startIndex == -1 || endIndex == -1) {
-          print('❤️ No valid JSON found in toggle like response.');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Invalid server response. Please try again.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        print('❤️ Parsed JSON: $data');
-
-        // Check for different possible success indicators
-        bool isSuccess = false;
-        String? errorMessage;
-
-        // Try different response formats
-        if (data['code'] == 200 || data['status'] == 200) {
-          isSuccess = true;
-        } else if (data['api_status'] == 200) {
-          isSuccess = true;
-        } else if (data.containsKey('success') && data['success'] == true) {
-          isSuccess = true;
-        } else if (!data.containsKey('errors') && !data.containsKey('error')) {
-          // If no explicit errors, assume success
-          isSuccess = true;
-        }
-
-        if (data.containsKey('errors')) {
-          errorMessage = data['errors']?['error_text'] ?? 'Failed to update like';
-        } else if (data.containsKey('error')) {
-          errorMessage = data['error'];
-        }
-
-        if (isSuccess) {
-          // Update the state immediately for visual feedback
+        // Only update state if API call was successful
+        if (data['code'] == 200) {
           setState(() {
             isLiked = !isLiked;
           });
-
-          print('❤️ Like status updated successfully: $isLiked for user: ${widget.user['username']}');
+          print(
+            "Like status updated: $isLiked for user: ${widget.user['username'].toString()}",
+          );
 
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                isLiked ? '❤️ User liked' : '💔 Like removed',
+                isLiked ? 'User liked' : 'Like removed',
               ),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
             ),
           );
         } else {
           // API returned error
-          print('❤️ API Error: $errorMessage');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('❌ ${errorMessage ?? 'Failed to update like'}'),
+              content: Text(data['errors']?['error_text'] ?? 'Failed to update like'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
             ),
           );
         }
       } else {
         // HTTP error
-        print('❤️ HTTP Error: ${response.statusCode}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Network error (${response.statusCode}). Please try again.'),
+          const SnackBar(
+            content: Text('Network error. Please try again.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+            duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      print('❤️ Exception toggling like: $e');
+      print('Error toggling like: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ An error occurred: ${e.toString()}'),
+        const SnackBar(
+          content: Text('An error occurred. Please try again.'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+          duration: Duration(seconds: 2),
         ),
       );
     } finally {
@@ -954,132 +541,6 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
         .catchError((error) {
       print('🚀 Error navigating to ChatConversationScreen: $error');
     });
-  }
-
-  // Save friend request status locally
-  Future<void> _saveFriendRequestStatus(String userId, bool status) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('friend_request_${UserDetails.userId}_to_$userId', status);
-      print('💾 Saved friend request status locally: $userId -> $status');
-    } catch (e) {
-      print('Error saving friend request status: $e');
-    }
-  }
-
-  // Load friend request status from local cache
-  Future<bool?> _loadFriendRequestStatus(String userId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final status = prefs.getBool('friend_request_${UserDetails.userId}_to_$userId');
-      print('📱 Loaded friend request status from cache: $userId -> $status');
-      return status;
-    } catch (e) {
-      print('Error loading friend request status: $e');
-      return null;
-    }
-  }
-
-  // Clear friend request status from local cache
-  Future<void> _clearFriendRequestStatus(String userId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('friend_request_${UserDetails.userId}_to_$userId');
-      print('🗑️ Cleared friend request status from cache: $userId');
-    } catch (e) {
-      print('Error clearing friend request status: $e');
-    }
-  }
-
-  // Verify friend request status after sending
-  Future<bool> _verifyFriendRequestSent(String targetUserId) async {
-    print('🔍 Verifying friend request was sent to user: $targetUserId');
-
-    // Wait a moment for the server to process
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Check if the request now appears in our outgoing requests
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex != -1 && endIndex != -1) {
-          String jsonString = responseBody.substring(startIndex, endIndex + 1);
-          final data = json.decode(jsonString);
-          final List requests = data['data'] ?? [];
-
-          // Check if we can find our request in the list
-          final requestExists = requests.any((request) {
-            final requesterId = request['requester_id'] ?? request['from_id'] ?? request['user_id'];
-            final recipientId = request['recipient_id'] ?? request['to_id'] ?? request['target_id'];
-
-            return (requesterId.toString() == UserDetails.userId.toString() &&
-                    recipientId.toString() == targetUserId) ||
-                   (requesterId.toString() == targetUserId &&
-                    recipientId.toString() == UserDetails.userId.toString());
-          });
-
-          print('🔍 Verification result: request exists = $requestExists');
-          return requestExists;
-        }
-      }
-    } catch (e) {
-      print('🔍 Error verifying friend request: $e');
-    }
-
-    return false;
-  }
-
-  // Retry friend request if first attempt fails
-  Future<bool> _retryFriendRequest(String targetUserId) async {
-    print('🔄 Retrying friend request for user: $targetUserId');
-
-    final apiUrl = '${SocialLoginService.baseUrl}/users/add_friend';
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'access_token': UserDetails.accessToken,
-          'uid': targetUserId,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex != -1 && endIndex != -1) {
-          String jsonString = responseBody.substring(startIndex, endIndex + 1);
-          final data = json.decode(jsonString);
-
-          // Check if retry was successful
-          bool success = (data['status'] == 200) ||
-                        (data['code'] == 200) ||
-                        (data.containsKey('message') && data['message'].toString().toLowerCase().contains('success'));
-
-          print('🔄 Retry result: $success');
-          return success;
-        }
-      }
-    } catch (e) {
-      print('🔄 Error in retry: $e');
-    }
-
-    return false;
   }
 
   @override
@@ -1148,7 +609,7 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
                       ),
                       const SizedBox(width: 20),
                       _buildActionButton(
-                        isFriendAdded ? Icons.how_to_reg : Icons.person_add,
+                        isFriendAdded ? Icons.person_remove : Icons.person_add_alt,
                         isFriendLoading ? () {} : _toggleFriend,
                         color: isFriendAdded ? Colors.green : Colors.white,
                         isLoading: isFriendLoading,
