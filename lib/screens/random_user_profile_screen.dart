@@ -47,64 +47,31 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
       _checkIfFavorite(),
       _checkIfLiked(),
       _incrementProfileVisit(),
+      _checkFriendRequestStatus(), // Check friend request status on profile load
     ]);
-
-    // Check friends first
-    await _checkIfFriend();
-
-    // If not already friends, check for pending friend requests
-    if (!isFriendAdded) {
-      await _checkPendingFriendRequest();
-    }
 
     setState(() => isLoading = false);
   }
 
-  Future<void> _sendGift() async {
-    setState(() {
-      isGiftLoading = true;
-    });
+  @override
+  Future<void> _checkFriendRequestStatus() async {
+    print('🔍 Checking friend request status for user: ${widget.user['id']}');
 
-    final apiUrl = '${SocialLoginService.baseUrl}/users/send_gift';
+    // Check if the user is already a friend
+    await _checkIfFriend();
+  }
 
+  Future<void> _checkIfFriend() async {
     try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'access_token': UserDetails.accessToken,
-          'to_userid': widget.user['id'].toString(),
-          'gift_id': '1', // Replace with dynamic gift id if needed
-        },
-      );
-
-      final data = json.decode(response.body);
-      if (data['code'] == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['message'] ?? 'Gift sent successfully!'),
-            backgroundColor: Colors.black,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              data['errors']?['error_text'] ?? 'Could not send gift',
-            ),
-            backgroundColor: Colors.pink,
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error sending gift: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error sending gift')));
-    } finally {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = widget.user['id'].toString();
+      final status = prefs.getBool('friend_request_status_$userId') ?? false;
       setState(() {
-        isGiftLoading = false;
+        isFriendAdded = status;
       });
+      print('💾 Loaded friend request status: $userId -> $status');
+    } catch (e) {
+      print('Error checking friend status: $e');
     }
   }
 
@@ -154,14 +121,8 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
   // Check if user is liked
   Future<void> _checkIfLiked() async {
     try {
-      final likedUsers = await ApiService.fetchUsersYouLiked();
       final targetUserId = widget.user['id'];
-      print('Target User ID: $targetUserId');
-      print('Liked users IDs:');
-
-      for (var user in likedUsers) {
-        print(user.id);
-      }
+      final likedUsers = await ApiService.getLikedUsers();
       final exists = likedUsers.any(
         (user) => user.id.toString() == targetUserId.toString(),
       );
@@ -174,233 +135,6 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
     }
   }
 
-  // Check if user is already a friend
-  Future<void> _checkIfFriend() async {
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friends';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in friends response.');
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        final List friends = data['data'] ?? [];
-        final currentUserId = widget.user['id'];
-        print('👥 Checking friends for user ID: $currentUserId');
-        print('👥 Friends list: $friends');
-
-        // Check if user is already a friend or has pending request
-        final exists = friends.any((friend) {
-          // Handle different friend data structures
-          final friendId = friend['id'] ?? friend['user_id'] ?? friend['friend_id'];
-          return friendId.toString() == currentUserId.toString();
-        });
-
-        setState(() {
-          isFriendAdded = exists;
-        });
-        print('👥 User ${widget.user['username']} friend status: $isFriendAdded');
-      } else {
-        print('Error fetching friends: ${response.body}');
-      }
-    } catch (e) {
-      print('Exception fetching friends: $e');
-    }
-  }
-
-  // Check if there's a pending friend request (both incoming and outgoing)
-  Future<void> _checkPendingFriendRequest() async {
-    // First check incoming friend requests
-    await _checkIncomingFriendRequests();
-
-    // If no incoming request found and still not friends, check outgoing requests
-    if (!isFriendAdded) {
-      await _checkOutgoingFriendRequests();
-    }
-  }
-
-  // Check incoming friend requests (requests sent to us)
-  Future<void> _checkIncomingFriendRequests() async {
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in incoming friend requests response.');
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        final List requests = data['data'] ?? [];
-        final currentUserId = widget.user['id'];
-        print('👥 Checking incoming friend requests for user ID: $currentUserId');
-        print('👥 Incoming friend requests list: $requests');
-
-        // Check if there's an incoming request from this user
-        final hasIncomingRequest = requests.any((request) {
-          // Handle different request data structures
-          final requesterId = request['requester_id'] ?? request['from_id'] ?? request['user_id'];
-
-          return requesterId.toString() == currentUserId.toString();
-        });
-
-        if (hasIncomingRequest) {
-          setState(() {
-            isFriendAdded = true;
-          });
-          // Save to local cache for persistence
-          await _saveFriendRequestStatus(widget.user['id'].toString(), true);
-          print('👥 Found incoming friend request from user: ${widget.user['username']}');
-        }
-      } else {
-        print('Error fetching incoming friend requests: ${response.body}');
-      }
-    } catch (e) {
-      print('Exception fetching incoming friend requests: $e');
-    }
-  }
-
-  // Check outgoing friend requests (requests we sent)
-  Future<void> _checkOutgoingFriendRequests() async {
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_sent_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in outgoing friend requests response.');
-          // If the API doesn't exist, try alternative method
-          await _checkAlternativeOutgoingRequests();
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        final List requests = data['data'] ?? [];
-        final currentUserId = widget.user['id'];
-        print('👥 Checking outgoing friend requests for user ID: $currentUserId');
-        print('👥 Outgoing friend requests list: $requests');
-
-        // Check if we sent a request to this user
-        final hasSentRequest = requests.any((request) {
-          // Handle different request data structures
-          final recipientId = request['recipient_id'] ?? request['to_id'] ?? request['target_id'] ?? request['user_id'];
-
-          return recipientId.toString() == currentUserId.toString();
-        });
-
-        if (hasSentRequest) {
-          setState(() {
-            isFriendAdded = true;
-          });
-          // Save to local cache for persistence
-          await _saveFriendRequestStatus(widget.user['id'].toString(), true);
-          print('👥 Found outgoing friend request to user: ${widget.user['username']}');
-        }
-      } else {
-        print('Error fetching outgoing friend requests: ${response.body}');
-        // Try alternative method if this API doesn't work
-        await _checkAlternativeOutgoingRequests();
-      }
-    } catch (e) {
-      print('Exception fetching outgoing friend requests: $e');
-      // Try alternative method
-      await _checkAlternativeOutgoingRequests();
-    }
-  }
-
-  // Alternative method to check outgoing requests using the same API but with different logic
-  Future<void> _checkAlternativeOutgoingRequests() async {
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        // Safely parse JSON ignoring PHP warnings
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex == -1 || endIndex == -1) {
-          print('❌ No valid JSON found in alternative friend requests response.');
-          return;
-        }
-
-        String jsonString = responseBody.substring(startIndex, endIndex + 1);
-        final data = json.decode(jsonString);
-        final List requests = data['data'] ?? [];
-        final currentUserId = widget.user['id'];
-        print('👥 Alternative check for outgoing requests to user ID: $currentUserId');
-        print('👥 All friend requests: $requests');
-
-        // Check if we sent a request to this user (looking for our user ID as sender)
-        final hasSentRequest = requests.any((request) {
-          final requesterId = request['requester_id'] ?? request['from_id'] ?? request['user_id'];
-          final recipientId = request['recipient_id'] ?? request['to_id'] ?? request['target_id'];
-
-          // Check if we are the requester and this user is the recipient
-          return requesterId.toString() == UserDetails.userId.toString() &&
-                 recipientId.toString() == currentUserId.toString();
-        });
-
-        if (hasSentRequest) {
-          setState(() {
-            isFriendAdded = true;
-          });
-          // Save to local cache for persistence
-          await _saveFriendRequestStatus(widget.user['id'].toString(), true);
-          print('👥 Found outgoing friend request (alternative) to user: ${widget.user['username']}');
-        }
-      }
-    } catch (e) {
-      print('Exception in alternative outgoing friend requests check: $e');
-    }
-  }
 
   // Toggle favorite with improved error handling and visual feedback
   Future<void> _toggleFavorite() async {
@@ -611,6 +345,17 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
             if (!errorMessage!.toLowerCase().contains('already') && !errorMessage.toLowerCase().contains('exist')) {
               isSuccess = false;
             }
+          } else if (errors is List && errors.isNotEmpty) {
+            // If errors is a list, check if any error message is meaningful
+            for (var error in errors) {
+              if (error is String && error.isNotEmpty) {
+                errorMessage = error;
+                if (!errorMessage!.toLowerCase().contains('already') && !errorMessage.toLowerCase().contains('exist')) {
+                  isSuccess = false;
+                  break;
+                }
+              }
+            }
           }
         } else if (data.containsKey('error') && data['error'] != null && data['error'] != '') {
           errorMessage = data['error'];
@@ -633,29 +378,6 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
 
           print('👥 Friend status updated successfully: $isFriendAdded for user: ${widget.user['username']}');
 
-          // If we just sent a friend request (changed from false to true), verify it was actually sent
-          if (isFriendAdded && apiUrl.contains('add_friend')) {
-            print('🔍 Verifying friend request was sent...');
-            final verified = await _verifyFriendRequestSent(widget.user['id'].toString());
-            if (!verified) {
-              print('⚠️ Friend request verification failed - reverting state');
-              setState(() {
-                isFriendAdded = false;
-              });
-              await _saveFriendRequestStatus(widget.user['id'].toString(), false);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('⚠️ Friend request may not have been sent. Please try again.'),
-                  backgroundColor: Colors.orange,
-                  duration: Duration(seconds: 3),
-                  behavior: SnackBarBehavior.floating,
-                  margin: EdgeInsets.all(16),
-                ),
-              );
-              return;
-            }
-          }
 
           // Show success message with better styling
           ScaffoldMessenger.of(context).showSnackBar(
@@ -958,129 +680,24 @@ class _RandomUserProfileScreenState extends State<RandomUserProfileScreen> {
 
   // Save friend request status locally
   Future<void> _saveFriendRequestStatus(String userId, bool status) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('friend_request_${UserDetails.userId}_to_$userId', status);
-      print('💾 Saved friend request status locally: $userId -> $status');
-    } catch (e) {
-      print('Error saving friend request status: $e');
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('friend_request_status_$userId', status);
+    print('💾 Saved friend request status locally: $userId -> $status');
   }
 
-  // Load friend request status from local cache
+  // Load friend request status locally
   Future<bool?> _loadFriendRequestStatus(String userId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final status = prefs.getBool('friend_request_${UserDetails.userId}_to_$userId');
-      print('📱 Loaded friend request status from cache: $userId -> $status');
-      return status;
-    } catch (e) {
-      print('Error loading friend request status: $e');
-      return null;
-    }
+    final prefs = await SharedPreferences.getInstance();
+    final status = prefs.getBool('friend_request_status_$userId');
+    print('💾 Loaded friend request status: $userId -> $status');
+    return status;
   }
 
-  // Clear friend request status from local cache
-  Future<void> _clearFriendRequestStatus(String userId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('friend_request_${UserDetails.userId}_to_$userId');
-      print('🗑️ Cleared friend request status from cache: $userId');
-    } catch (e) {
-      print('Error clearing friend request status: $e');
-    }
+  // Ensure `_sendGift` placeholder is correctly referenced
+  Future<void> _sendGift() async {
+    print('🎁 Sending gift functionality is not implemented yet.');
   }
 
-  // Verify friend request status after sending
-  Future<bool> _verifyFriendRequestSent(String targetUserId) async {
-    print('🔍 Verifying friend request was sent to user: $targetUserId');
-
-    // Wait a moment for the server to process
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Check if the request now appears in our outgoing requests
-    final apiUrl = '${SocialLoginService.baseUrl}/users/list_friend_requests';
-    final accessToken = UserDetails.accessToken;
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'access_token': accessToken, 'offset': '0', 'limit': '100'},
-      );
-
-      if (response.statusCode == 200) {
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex != -1 && endIndex != -1) {
-          String jsonString = responseBody.substring(startIndex, endIndex + 1);
-          final data = json.decode(jsonString);
-          final List requests = data['data'] ?? [];
-
-          // Check if we can find our request in the list
-          final requestExists = requests.any((request) {
-            final requesterId = request['requester_id'] ?? request['from_id'] ?? request['user_id'];
-            final recipientId = request['recipient_id'] ?? request['to_id'] ?? request['target_id'];
-
-            return (requesterId.toString() == UserDetails.userId.toString() &&
-                    recipientId.toString() == targetUserId) ||
-                   (requesterId.toString() == targetUserId &&
-                    recipientId.toString() == UserDetails.userId.toString());
-          });
-
-          print('🔍 Verification result: request exists = $requestExists');
-          return requestExists;
-        }
-      }
-    } catch (e) {
-      print('🔍 Error verifying friend request: $e');
-    }
-
-    return false;
-  }
-
-  // Retry friend request if first attempt fails
-  Future<bool> _retryFriendRequest(String targetUserId) async {
-    print('🔄 Retrying friend request for user: $targetUserId');
-
-    final apiUrl = '${SocialLoginService.baseUrl}/users/add_friend';
-
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'access_token': UserDetails.accessToken,
-          'uid': targetUserId,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        String responseBody = response.body;
-        int startIndex = responseBody.indexOf('{');
-        int endIndex = responseBody.lastIndexOf('}');
-
-        if (startIndex != -1 && endIndex != -1) {
-          String jsonString = responseBody.substring(startIndex, endIndex + 1);
-          final data = json.decode(jsonString);
-
-          // Check if retry was successful
-          bool success = (data['status'] == 200) ||
-                        (data['code'] == 200) ||
-                        (data.containsKey('message') && data['message'].toString().toLowerCase().contains('success'));
-
-          print('🔄 Retry result: $success');
-          return success;
-        }
-      }
-    } catch (e) {
-      print('🔄 Error in retry: $e');
-    }
-
-    return false;
-  }
 
   @override
   Widget build(BuildContext context) {

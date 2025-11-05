@@ -327,11 +327,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final response = await request.send();
       if (response.statusCode == 200) {
+        print('Request successful: ${response.statusCode}');
         Fluttertoast.showToast(msg: 'Media uploaded successfully!');
       } else {
+        print('Request failed with status: ${response.statusCode}');
         Fluttertoast.showToast(msg: 'Media upload failed.');
       }
     } catch (e) {
+      print('Request error: $e');
       Fluttertoast.showToast(msg: 'Upload error: $e');
     }
   }
@@ -698,4 +701,3 @@ class SectionTitle extends StatelessWidget {
     );
   }
 }
-

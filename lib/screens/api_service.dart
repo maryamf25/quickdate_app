@@ -290,4 +290,24 @@ class ApiService {
       throw Exception('Error fetching profile visits: $e');
     }
   }
+
+  static Future<List<dynamic>> getLikedUsers() async {
+    final url = Uri.parse('$baseUrl/users/get_liked_users');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: {'access_token': UserDetails.accessToken},
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['status'] == 200 && data['data'] != null) {
+        return data['data'];
+      } else {
+        throw Exception('Failed to fetch liked users.');
+      }
+    } else {
+      throw Exception('Failed to fetch liked users.');
+    }
+  }
 }
